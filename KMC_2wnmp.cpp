@@ -52,7 +52,8 @@ double Y1, Y2;
 int emi, emiH2, previous_emi, previous_emiH2;
 double str_Nit[10000];
 double str_time[10000];
-double t;
+double t,t_prev;
+int prev,curr;
 int counter, f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16;
 double r, r1, r2;
 
@@ -100,8 +101,8 @@ int main(){
 	z_comp_length = 0.5e-9;
 
 //  Rate constants for Stress
-    k13 = 9e10;
-	k31 = 1e10;
+    k13 = 9;
+	k31 = 1;
 
 	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
 
@@ -157,6 +158,7 @@ int main(){
 	emi = 0;
 
 	t = sw_time_1[0];
+	t_prev = t;
 	float i[] = {2,2,2,2,2,2,2,2,2,2,2};
 	counter = 0;
 	ofstream myfile1,myfile,myfile2,myfile3;
@@ -195,8 +197,35 @@ int main(){
 
 		carry_out_reaction();
 
-		t = t + tau;
-        myfile <<t<<' '<<emi<<endl;
+        if (t == sw_time_1[0])
+        {
+            t = t + tau;
+            curr = (int) floor(log10(t));
+            prev = curr;
+        }
+
+        else
+        {
+            t = t + tau;
+            curr = (int) ceil(log10(t));
+        }
+
+        if(curr!=prev)
+        {
+            prev = curr;
+            myfile<<t<<' '<<emi<<endl;
+            t_prev = t + 0.1*pow(10,curr);
+        }
+
+        else
+        {
+            if(t > t_prev)
+            {
+                myfile<<t<<' '<<emi<<endl;
+                t_prev = t + 0.1*pow(10,curr);
+            }
+        }
+
 //        if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
 //			myfile <<t<<' '<< emi <<endl;
 //
@@ -274,16 +303,16 @@ int main(){
 //*********************************************************************************
 
 	t = sw_time_1[0];
-
+    t_prev = t;
 //  fill(i,i+sizeof(i),2);
 	for (int k=0; k<11; k++) {
     i[k] = 2;
     }
 	counter = 0;
 
-//  Rate constats for recovery
-	k13 = 1e10;
-	k31 = 6e10;
+//  Rate constants for recovery
+	k13 = 1;
+	k31 = 6;
 
 //  Total Propensities
     alpha_k31_total = bulk_defects.size()*k31;
@@ -316,64 +345,92 @@ int main(){
 
 		carry_out_reaction();
 
-		t = t + tau;
+        if (t == sw_time_1[0])
+        {
+            t = t + tau;
+            curr = (int) floor(log10(t));
+            prev = curr;
+        }
 
-		if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[0]=i[0]+1;
-		}
+        else
+        {
+            t = t + tau;
+            curr = (int) ceil(log10(t));
+        }
 
-		else if(( t < 1e-5*i[1] ) && ( t >= 1e-5*(i[1]-1) ) && (i[1]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[1]=i[1]+1;
-		}
+        if(curr!=prev)
+        {
+            prev = curr;
+            myfile1<<t<<' '<<emi<<endl;
+            t_prev = t + 0.1*pow(10,curr);
+        }
 
-		else if(( t < 1e-4*i[2] ) && ( t >= 1e-4*(i[2]-1) ) && (i[2]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[2]=i[2]+1;
-		}
+        else
+        {
+            if(t > t_prev)
+            {
+                myfile1<<t<<' '<<emi<<endl;
+                t_prev = t + 0.1*pow(10,curr);
+            }
+        }
 
-		else if(( t < 1e-3*i[3] ) && ( t >= 1e-3*(i[3]-1) ) && (i[3]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[3]=i[3]+1;
-		}
 
-		else if(( t < 1e-2*i[4] ) && ( t >= 1e-2*(i[4]-1) ) && (i[4]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[4]=i[4]+1;
-		}
+//		if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[0]=i[0]+1;
+//		}
+//
+//		else if(( t < 1e-5*i[1] ) && ( t >= 1e-5*(i[1]-1) ) && (i[1]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[1]=i[1]+1;
+//		}
+//
+//		else if(( t < 1e-4*i[2] ) && ( t >= 1e-4*(i[2]-1) ) && (i[2]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[2]=i[2]+1;
+//		}
+//
+//		else if(( t < 1e-3*i[3] ) && ( t >= 1e-3*(i[3]-1) ) && (i[3]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[3]=i[3]+1;
+//		}
+//
+//		else if(( t < 1e-2*i[4] ) && ( t >= 1e-2*(i[4]-1) ) && (i[4]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[4]=i[4]+1;
+//		}
+//
+//		else if(( t < 1e-1*i[5] ) && ( t >= 1e-1*(i[5]-1) ) && (i[5]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[5]=i[5]+1;
+//		}
+//
+//		else if(( t < i[6] ) && ( t >= (i[6]-1) ) && (i[6]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[6]=i[6]+1;
+//		}
+//
+//		else if(( t < 1e1*i[7] ) && ( t >= 1e1*(i[7]-1) ) && (i[7]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[7]=i[7]+1;
+//		}
+//
+//		else if(( t < 1e2*i[8] ) && ( t >= 1e2*(i[8]-1) ) && (i[8]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[8]=i[8]+1;
+//		}
+//
+//		else if(( t < 1e3*i[9] ) && ( t >= 1e3*(i[9]-1) ) && (i[9]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[9]=i[9]+1;
+//		}
+//
+//		else if(( t < 1e4*i[10] ) && ( t >= 1e4*(i[10]-1) ) && (i[10]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[10]=i[10]+1;
+//		}
 
-		else if(( t < 1e-1*i[5] ) && ( t >= 1e-1*(i[5]-1) ) && (i[5]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[5]=i[5]+1;
-		}
-
-		else if(( t < i[6] ) && ( t >= (i[6]-1) ) && (i[6]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[6]=i[6]+1;
-		}
-
-		else if(( t < 1e1*i[7] ) && ( t >= 1e1*(i[7]-1) ) && (i[7]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[7]=i[7]+1;
-		}
-
-		else if(( t < 1e2*i[8] ) && ( t >= 1e2*(i[8]-1) ) && (i[8]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[8]=i[8]+1;
-		}
-
-		else if(( t < 1e3*i[9] ) && ( t >= 1e3*(i[9]-1) ) && (i[9]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[9]=i[9]+1;
-		}
-
-		else if(( t < 1e4*i[10] ) && ( t >= 1e4*(i[10]-1) ) && (i[10]<11)){
-			myfile1 <<t<<' '<< emi <<endl;
-			i[10]=i[10]+1;
-		}
-
-        //myfile <<t<< ' '<< emi <<endl;
+//        myfile <<t<< ' '<< emi <<endl;
 
 		counter = counter + 1;
 
