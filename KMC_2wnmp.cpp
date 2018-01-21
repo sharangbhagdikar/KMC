@@ -32,14 +32,14 @@ int k1, k2, k3;
 
 double alpha0, yemp, tau;
 double temp13, temp11, temp12;
-double ini_trap1_check;
-double ini_trap2_check;
 double width, length, height;
 int w_lim, l_lim, z_lim;
 
 #define WIDTH  50
 #define LENGTH 20
 #define HEIGHT 1
+
+#define fpsi(VGS,VFB,psi) VGS-VFB-psi-((ESi*E0*sqrt(2)*(VT/Ldp)*sqrt((exp(-psi/VT)+(psi/VT)-1)+((exp(-2*phif/VT))*(exp(psi/VT)-(psi/VT)-1))))/cox)
 
 double alpha_k13_total;
 double alpha_k31_total;
@@ -48,7 +48,7 @@ double alpha_k31_total;
 double temp_1, temp_2;
 double err;
 
-double Y1, Y2;
+double psi_str, FSiO2;
 int emi, emiH2, previous_emi, previous_emiH2;
 double str_Nit[10000];
 double str_time[10000];
@@ -88,7 +88,123 @@ struct locate_threeD {
 };
 
 vector <threeD> init_sites;
+vector < double > k13_arr, k31_arr;
 multimap<int, threeD> bulk_defects;
+
+/**********************************************************************************/
+/********************************    Device Data     ******************************/
+/**********************************************************************************/
+
+const double q = 1.6e-19; // Farad, charge on an electron
+const double ESi = 11.8; // Relative permittivity of Silicon
+const double ESiO2 = 3.9; // Relative permittivity of Silicon-di-oxide
+const double E0 = 8.854e-14; // Absolute permittivity in farad/cm
+const double ni0 = 1e10; // Intrensic carrier concentration at 300 K in /cm^3
+const double Eg = 1.12; // Bandgap of Si at 300 K in eV
+const double Kb= 1.380658e-23; // Boltzman constant in J/K
+
+/**********************************************************************************/
+
+//// Changeable parameters
+    double Temp = 130;
+    double Vgs_dc = 1.5; //DC stess voltage in Volts
+    double Vgr_dc = 0; //DC recovery voltage in Volts
+	double Tox = HEIGHT*1e-7;
+	double ND = 5e16; //  Channel Doping in atoms/cm^3
+    double N0 = 6.5e12; //  Channel Doping in atoms/cm^3
+    double vfb = 0.4992; // Flatband voltage in Volts
+    double E1 = 0.65;
+    double E2 = 0;
+    double EV = 0;
+	double SHW = 5.9;
+	double R = 0.52;
+    double gamma = 3.2e-7;
+/*********************************************************************************/
+
+	double VT1 = (Kb*300)/q;// Thermal voltage Vt@ 300 K = 0.0259eV in eV
+	double VT= (Kb*(273+Temp))/q;//Thermal voltage Vt@ 273+Temp in eV
+	double ni = ni0*(pow(((273+Temp)/300),1.5))*exp(-Eg/2*(1/VT-1/VT1)); // in cm^-3
+	double phif=VT*log(ND/ni);                // Bulk potential in V
+	double beta = 1/VT;                       // in /V
+
+	double kt=Kb*(273+Temp);//// Joules
+	double cox=(ESiO2*E0)/Tox; // in F/cm^2
+	double Ldp=sqrt((ESi*E0*kt)/(q*q*ND)); ////// Debye Length in cm
+
+    double pi=22.0/7;
+	double mp=0.5*9.1e-31;                   // hole mass in kg (http://ecee.colorado.edu/~bart/book/effmass.htm)
+    double vp=sqrt(8*kt/(pi*mp))*100;         // should be thermal velocity (check the formula) in cm/s
+    double sp=(1e-15) ;                       // cross-section area in cm^2
+    double h=6.62607004e-34;                  // in Joule*seconds
+    double NV=2*(pow((2*pi*mp*Kb*(273+Temp)/(pow(h,2))),1.5))*1e-6; // in /cm^3
+    double p0=(pow(ni,2))/ND;                 // Bulk minority concentration  /cm^3
+
+void ox_field(double VGb_str)
+{
+	//Solving for surface potential
+	int cnt=1;
+
+	int maxiter = 2500;
+	double lpsi=0;
+	double rpsi = 3*phif;
+
+	double fvall = fpsi(VGb_str,vfb,lpsi);
+
+	double fvalu = fpsi(VGb_str,vfb,rpsi);
+
+    double newpsi;
+	double tmp=0.0;
+	double tol=1e-10;
+	double fvalleft,fvalright;
+
+	if (fvall*fvalu < 0.0)
+	{
+		newpsi = (lpsi+rpsi)/2;
+		do {
+			fvalleft  = fpsi(VGb_str,vfb,lpsi);
+			fvalright = fpsi(VGb_str,vfb,newpsi);
+
+			if (fvalleft*fvalright < 0)
+					rpsi=newpsi;
+				else
+					lpsi=newpsi;
+
+            tmp = (lpsi+rpsi)/2;
+            newpsi=tmp;
+            cnt=cnt+1;
+		}
+		while(cnt < maxiter && fabs(fvalright) > tol );
+		psi_str=newpsi;
+	}
+
+	//Surface Electric Field
+	double FSi=sqrt(2)*(VT/Ldp)*sqrt((exp(-psi_str/VT)+(psi_str/VT)-1)+((exp(-2*phif/VT))*(exp(psi_str/VT)-(psi_str/VT)-1)));
+
+	//Electric Field in SiO2
+	FSiO2=FSi*ESi/ESiO2;
+}
+
+void rate(double xvecbytox)
+{
+    double ps=p0*(exp(beta*psi_str)); // Surface minority carrier concentration near the interface which is inversion carrier density in  /cm^3
+    double pf_ps = ps*vp*sp;
+    double pf_nv = NV*vp*sp;
+
+    double delET = E1-EV;
+    double epsT1_str = E2- delET - gamma*(1-xvecbytox)*FSiO2;
+
+    double eps12d_str = SHW/(pow((1 + R),2)) + R*epsT1_str/(1+R) + R*(pow(epsT1_str,2))/(4*SHW);
+    double eps21d_str = SHW/(pow((1 + R),2)) - epsT1_str/(1+R) + R*(pow(epsT1_str,2))/(4*SHW);
+
+    k13 = pf_ps*exp(-beta*eps12d_str);
+		if(k13 > pf_ps)
+			k13 = pf_ps;
+
+    k31 = pf_nv*exp(-beta*eps21d_str);
+		if(k31 > pf_nv)
+			k31 = pf_nv;
+
+}
 
 int main(){
 
@@ -100,9 +216,12 @@ int main(){
 	compartment_length = 0.5e-9;
 	z_comp_length = 0.5e-9;
 
+
+
+
 //  Rate constants for Stress
-    k13 = 9;
-	k31 = 1;
+//    k13 = 9;
+//	k31 = 1;
 
 	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
 
@@ -115,6 +234,16 @@ int main(){
 	height = HEIGHT*1e-9;
 	z_lim =  (int) ceil(height/z_comp_length);
 
+
+    ox_field(Vgs_dc);
+
+    for(int o = 0; o <= z_lim-1; o++)
+    {
+        rate(o/z_lim);
+        k13_arr.push_back(k13);
+        k31_arr.push_back(k31);
+    }
+
 	bool hit1 = 0;
 	bool hit2 = 0;
 	bool hit3 = 0;
@@ -122,6 +251,8 @@ int main(){
 	bool hit5 = 0;
 
 	int d1 =0;
+    alpha_k13_total = 0;                   // Initial total forward propensity: from ground state to transport state
+    alpha_k31_total = 0;                  // Initial reverse propensity:
 
 //  Distribute defect sites spatially in the bulk
 	for(d1= 0; d1<num_defects; d1++){
@@ -139,13 +270,10 @@ int main(){
 
 		else
         {
+            alpha_k13_total += k13_arr[c3];
 			init_sites.push_back(threeD(c1,c2,c3));
 		}
 	}
-
-    alpha_k13_total = num_defects*k13;    // Initial total forward propensity: from ground state to transport state
-    alpha_k31_total = 0;                  // Initial reverse propensity:
-
 
 
 
@@ -311,12 +439,30 @@ int main(){
 	counter = 0;
 
 //  Rate constants for recovery
-	k13 = 1;
-	k31 = 6;
+//	k13 = 1;
+//	k31 = 6;
 
 //  Total Propensities
-    alpha_k31_total = bulk_defects.size()*k31;
-    alpha_k13_total = init_sites.size()*k13;
+    ox_field(Vgr_dc);
+
+    for(int o = 0; o < z_lim; o++)
+    {
+        rate(o/z_lim);
+        k13_arr[o] = k13;
+        k31_arr[o] = k31;
+    }
+    alpha_k13_total = 0;
+    alpha_k31_total = 0;
+
+    for(map<int,threeD>::iterator o = bulk_defects.begin(); o != bulk_defects.end(); o++)
+    {
+        alpha_k31_total += k31_arr[o->second.z];
+    }
+
+    for(vector<threeD>::iterator o = init_sites.begin(); o != init_sites.end(); o++)
+    {
+        alpha_k13_total += k13_arr[o->z];
+    }
 
 
     while (t < sw_time_1[1] && flagger == 0){
@@ -530,9 +676,9 @@ void carry_out_reaction() {
 
 			if ((r2 >= temp12) && (r2 < temp13)) {
                 init_sites.push_back(it->second);
+                alpha_k13_total = alpha_k13_total + k13_arr[it->second.z];
+                alpha_k31_total = alpha_k31_total - k31_arr[it->second.z];
                 bulk_defects.erase(it);
-                alpha_k13_total = alpha_k13_total + k13;
-                alpha_k31_total = alpha_k31_total - k31;
                 setzero(alpha_k31_total);
                 emi--;
                 break;
@@ -552,11 +698,11 @@ void carry_out_reaction() {
 			if ((r2 >= temp12) && (r2 < temp13)) {
 
 				bulk_defects.insert(pair<int, threeD> (0,*it));
+				alpha_k13_total = alpha_k13_total - k13_arr[it->z];
+				alpha_k31_total = alpha_k31_total + k31_arr[it->z];
 				init_sites.erase(it);
 
-                alpha_k13_total = alpha_k13_total - k13;
-				alpha_k31_total = alpha_k31_total + k31;
-				setzero(alpha_k13_total);
+                setzero(alpha_k13_total);
 				emi++;
 				break;
 			}
