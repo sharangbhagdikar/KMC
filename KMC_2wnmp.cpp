@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <math.h>
 #include <cstdlib>
+#include <stdio.h>
 #include <time.h>
 #include <map>
 using namespace std;
@@ -49,7 +51,7 @@ double temp_1, temp_2;
 double err;
 
 double psi_str, FSiO2;
-int emi, emiH2, previous_emi, previous_emiH2;
+int emi, emiprev, previous_emi, previous_emiH2;
 double str_Nit[10000];
 double str_time[10000];
 double t,t_prev;
@@ -113,19 +115,19 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 	double ND = 5e16; //  Channel Doping in atoms/cm^3
     double N0 = 6.5e12; //  Channel Doping in atoms/cm^3
     double vfb = 0.4992; // Flatband voltage in Volts
-    double E1 = 0.65;
-    double E2 = 0;
-    double EV = 0;
-	double SHW = 5.9;
-	double R = 0.52;
-    double gamma = 3.2e-7;
+    double E1 = 0.65;      // eV
+    double E2 = 0;         // eV
+    double EV = 0;         // eV
+	double SHW = 5.9;      // eV
+	double R = 0.52;       //
+    double Gamma = 3.2e-7; // eV cm/V
 /*********************************************************************************/
 
 	double VT1 = (Kb*300)/q;// Thermal voltage Vt@ 300 K = 0.0259eV in eV
 	double VT= (Kb*(273+Temp))/q;//Thermal voltage Vt@ 273+Temp in eV
-	double ni = ni0*(pow(((273+Temp)/300),1.5))*exp(-Eg/2*(1/VT-1/VT1)); // in cm^-3
+	double ni = ni0*(pow(static_cast<double>((273+Temp)/300),1.5))*exp(-Eg/2*(1/VT-1/VT1)); // in cm^-3
 	double phif=VT*log(ND/ni);                // Bulk potential in V
-	double beta = 1/VT;                       // in /V
+	double beta = 1/VT;                       // in 1/eV
 
 	double kt=Kb*(273+Temp);//// Joules
 	double cox=(ESiO2*E0)/Tox; // in F/cm^2
@@ -136,7 +138,7 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
     double vp=sqrt(8*kt/(pi*mp))*100;         // should be thermal velocity (check the formula) in cm/s
     double sp=(1e-15) ;                       // cross-section area in cm^2
     double h=6.62607004e-34;                  // in Joule*seconds
-    double NV=2*(pow((2*pi*mp*Kb*(273+Temp)/(pow(h,2))),1.5))*1e-6; // in /cm^3
+    double NV=2*(pow(static_cast<double>(2*pi*mp*Kb*(273+Temp)/(pow(h,2))),1.5))*1e-6; // in /cm^3
     double p0=(pow(ni,2))/ND;                 // Bulk minority concentration  /cm^3
 
 void ox_field(double VGb_str)
@@ -149,9 +151,9 @@ void ox_field(double VGb_str)
 	double rpsi = 3*phif;
 
 	double fvall = fpsi(VGb_str,vfb,lpsi);
-
+    //cout<<fvall<<"'";
 	double fvalu = fpsi(VGb_str,vfb,rpsi);
-
+    //cout<<fvalu<<endl;
     double newpsi;
 	double tmp=0.0;
 	double tol=1e-10;
@@ -159,6 +161,7 @@ void ox_field(double VGb_str)
 
 	if (fvall*fvalu < 0.0)
 	{
+	    //cout<<"hello"<<endl;
 		newpsi = (lpsi+rpsi)/2;
 		do {
 			fvalleft  = fpsi(VGb_str,vfb,lpsi);
@@ -176,12 +179,13 @@ void ox_field(double VGb_str)
 		while(cnt < maxiter && fabs(fvalright) > tol );
 		psi_str=newpsi;
 	}
-
+    //cout<<psi_str<<endl;
 	//Surface Electric Field
 	double FSi=sqrt(2)*(VT/Ldp)*sqrt((exp(-psi_str/VT)+(psi_str/VT)-1)+((exp(-2*phif/VT))*(exp(psi_str/VT)-(psi_str/VT)-1)));
 
 	//Electric Field in SiO2
 	FSiO2=FSi*ESi/ESiO2;
+	//cout<<FSiO2<<endl;
 }
 
 void rate(double xvecbytox)
@@ -191,11 +195,13 @@ void rate(double xvecbytox)
     double pf_nv = NV*vp*sp;
 
     double delET = E1-EV;
-    double epsT1_str = E2- delET - gamma*(1-xvecbytox)*FSiO2;
-
-    double eps12d_str = SHW/(pow((1 + R),2)) + R*epsT1_str/(1+R) + R*(pow(epsT1_str,2))/(4*SHW);
-    double eps21d_str = SHW/(pow((1 + R),2)) - epsT1_str/(1+R) + R*(pow(epsT1_str,2))/(4*SHW);
-
+    double epsT1_str = E2- delET - Gamma*(1-xvecbytox)*FSiO2;
+    //cout<<FSiO2<<endl;
+    //cout<<epsT1_str<<endl;
+    double eps12d_str = SHW/(pow((1 + R),2)) + R*epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
+    double eps21d_str = SHW/(pow((1 + R),2)) - epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
+    //cout<<pf_ps<<","<<pf_nv<<endl;
+    //cout<<beta<<endl;
     k13 = pf_ps*exp(-beta*eps12d_str);
 		if(k13 > pf_ps)
 			k13 = pf_ps;
@@ -208,10 +214,10 @@ void rate(double xvecbytox)
 
 int main(){
 
-	srand (99989);
+	srand (285460);
 	double sw_time_1 [] = {1e-6, 1e3};
 
-	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/10;
+	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/40;
 
 	compartment_length = 0.5e-9;
 	z_comp_length = 0.5e-9;
@@ -220,8 +226,8 @@ int main(){
 
 
 //  Rate constants for Stress
-//    k13 = 9;
-//	k31 = 1;
+    k13 = 0.001;
+	k31 = 0.00001;
 
 	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
 
@@ -235,13 +241,15 @@ int main(){
 	z_lim =  (int) ceil(height/z_comp_length);
 
 
-    ox_field(Vgs_dc);
+    //ox_field(Vgs_dc);
 
     for(int o = 0; o <= z_lim-1; o++)
     {
-        rate(o/z_lim);
+        //rate((double)o/z_lim);
         k13_arr.push_back(k13);
+        //cout<<k13<<endl;
         k31_arr.push_back(k31);
+        //cout<<k31<<endl;
     }
 
 	bool hit1 = 0;
@@ -328,32 +336,34 @@ int main(){
         if (t == sw_time_1[0])
         {
             t = t + tau;
-            curr = (int) floor(log10(t));
-            prev = curr;
+            t_prev = pow(10,floor(log10(t)));
+
+            while(t_prev < t)
+            {
+                myfile<<t_prev<<' '<<0<<endl;
+                //t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
+                t_prev = t_prev*pow(10,0.1);                    //log scale
+            }
+            emiprev = emi;
         }
 
         else
         {
             t = t + tau;
-            curr = (int) ceil(log10(t));
-        }
 
-        if(curr!=prev)
-        {
-            prev = curr;
-            myfile<<t<<' '<<emi<<endl;
-            t_prev = t + 0.1*pow(10,curr);
-        }
-
-        else
-        {
-            if(t > t_prev)
+            while(t_prev < t)
             {
-                myfile<<t<<' '<<emi<<endl;
-                t_prev = t + 0.1*pow(10,curr);
+                myfile<<t_prev<<' '<<emiprev<<endl;
+                //t_prev = t_prev + pow(10,floor(log10(t_prev)));   //linear scale
+                t_prev = t_prev*pow(10,0.1);                        //log scale
             }
+
+            //myfile<<t<<' '<<emi<<endl;
+            emiprev = emi;
+
         }
 
+//t = t + tau;
 //        if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
 //			myfile <<t<<' '<< emi <<endl;
 //
@@ -409,7 +419,7 @@ int main(){
 //			myfile <<t<<' '<< emi <<endl;
 //			i[10]=i[10]+1;
 //		}
-
+//
 		counter = counter + 1;
 	}
 
@@ -423,8 +433,8 @@ int main(){
 		myfile2<<(itstr->second).x<<" "<<(itstr->second).y<<" "<<(itstr->second).z<<endl;
 	}
 	myfile2<<endl;
-
-
+    myfile2.close();
+    myfile.close();
 
 //*********************************************************************************
 //****************************     RECOVERY     ***********************************
@@ -439,18 +449,21 @@ int main(){
 	counter = 0;
 
 //  Rate constants for recovery
-//	k13 = 1;
-//	k31 = 6;
+	k13 = 1;
+	k31 = 6;
 
 //  Total Propensities
-    ox_field(Vgr_dc);
+//    ox_field(Vgr_dc);
 
     for(int o = 0; o < z_lim; o++)
     {
-        rate(o/z_lim);
+        //rate((double) o/z_lim);
         k13_arr[o] = k13;
+        //cout<<k13;
         k31_arr[o] = k31;
+        //cout<<k31;
     }
+
     alpha_k13_total = 0;
     alpha_k31_total = 0;
 
@@ -494,33 +507,33 @@ int main(){
         if (t == sw_time_1[0])
         {
             t = t + tau;
-            curr = (int) floor(log10(t));
-            prev = curr;
+            t_prev = pow(10,floor(log10(t)));
+
+            while(t_prev < t)
+            {
+                myfile1<<t_prev<<' '<<end_of_str_traps<<endl;
+                //t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
+                t_prev = t_prev*pow(10,0.1);                      //log scale
+            }
+            emiprev = emi;
         }
 
         else
         {
             t = t + tau;
-            curr = (int) ceil(log10(t));
-        }
 
-        if(curr!=prev)
-        {
-            prev = curr;
-            myfile1<<t<<' '<<emi<<endl;
-            t_prev = t + 0.1*pow(10,curr);
-        }
-
-        else
-        {
-            if(t > t_prev)
+            while(t_prev < t)
             {
-                myfile1<<t<<' '<<emi<<endl;
-                t_prev = t + 0.1*pow(10,curr);
+                myfile1<<t_prev<<' '<<emiprev<<endl;
+                //t_prev = t_prev + pow(10,floor(log10(t_prev)));   //linear scale
+                t_prev = t_prev*pow(10,0.1);                        //log scale
             }
+            //myfile<<t<<' '<<emi<<endl;
+            emiprev = emi;
         }
 
-
+//        t = t + tau;
+//
 //		if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
 //			myfile1 <<t<<' '<< emi <<endl;
 //			i[0]=i[0]+1;
@@ -575,7 +588,7 @@ int main(){
 //			myfile1 <<t<<' '<< emi <<endl;
 //			i[10]=i[10]+1;
 //		}
-
+//
 //        myfile <<t<< ' '<< emi <<endl;
 
 		counter = counter + 1;
@@ -631,6 +644,8 @@ int main(){
 		}
     }
 
+    myfile1.close();
+    myfile3.close();
 	return 0;
 }
 
