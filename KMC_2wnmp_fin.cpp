@@ -15,35 +15,35 @@ using namespace std;
 double randnu ();
 double roundin (double);
 int rand_l_lim(int comp_size);
-int rand_w_lim(int comp_size);
-int rand_tox_lim(int comp_size);
+int rand_w_lim(int comp_size, int comp_size2);
+int rand_z_lim(int comp_size, int comp_size2);
 void setzero(double &val);//??
 void carry_out_reaction();//??
 int kil;
 int num_defects;
 int end_of_str_traps;
 double k31, k13, mul_fac;
-double E1, E2, R, SHW;
 double compartment_length;
 double z_comp_length;
+double prob, prob1, probtotal, prob2, prob3, prob4;
 int num_compartment, domains_per_nm;
 int j;
 int nr1, nr2, nf1, nf2, ndz1, ndz2;
-double q1, q2, q3;
+bool q1, q2, q3;
 int c1, c2, c3, c4;
 int k1, k2, k3;
-double somevar, somevar2, somevar3;
+
 double alpha0, yemp, tau;
 double temp13, temp11, temp12;
 double width, length, height;
-int w_lim, l_lim, z_lim;
+int w_lim_1,w_lim_2,w_lim_3, l_lim, z_lim_1, z_lim_2;
 
-#define WIDTH  50
-#define LENGTH 20
-#define HEIGHT 1
+#define WIDTH  10
+#define LENGTH 25
+#define THICKNESS 1
+#define HEIGHT 35
 
-#define fpsi(VGS,VFB,psi,bot) VGS - VFB - psi - bot*sqrt( (2*q*ESi*E0*ND) * (VT*exp(-psi/VT) + psi - VT + exp(-2*phif/VT)*(VT*exp(psi/VT) - psi - VT)))/cox
-#define gaussian(x,mu,sigma) exp(- pow((x-mu)/sigma,2)/2)/(sqrt(2*pi)*sigma)
+#define fpsi(VGS,VFB,psi) VGS-VFB-psi-((ESi*E0*sqrt(2)*(VT/Ldp)*sqrt((exp(-psi/VT)+(psi/VT)-1)+((exp(-2*phif/VT))*(exp(psi/VT)-(psi/VT)-1))))/cox)
 
 double alpha_k13_total;
 double alpha_k31_total;
@@ -51,8 +51,6 @@ double alpha_k31_total;
 
 double temp_1, temp_2;
 double err;
-vector < pair <double, double> > E1_arr, E2_arr, SHW_arr, R_arr;
-vector <double> E1_store, E2_store, SHW_store, R_store;
 
 double psi_str, FSiO2;
 int emi, emiprev, previous_emi, previous_emiH2;
@@ -66,11 +64,12 @@ double r, r1, r2;
 double kk1, kk2, kk3;
 
 struct threeD {
-	threeD(int x, int y, int z) : x(x), y(y), z(z) {}
+	threeD(int x, int y, int z, bool adj_in, bool adj_out) : x(x), y(y), z(z), adj_in(adj_in), adj_out(!adj_in && adj_out) {}
 	threeD(const threeD &c) {x = c.x; y = c.y; z = c.z;}
 	int x;
 	int y;
 	int z;
+    bool adj_in, adj_out;
 
     bool operator==(const threeD &o) const {
      return ((x == o.x) && (z == o.z) && (y == o.y));
@@ -96,7 +95,6 @@ struct locate_threeD {
 vector <threeD> init_sites;
 vector < double > k13_arr, k31_arr;
 multimap<int, threeD> bulk_defects;
-map <threeD, pair<double, double> > defect_rates;
 
 /**********************************************************************************/
 /********************************    Device Data     ******************************/
@@ -115,20 +113,16 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 //// Changeable parameters
     double Temp = 130;
     double Vgs_dc = 1.5; //DC stess voltage in Volts
-    double Vgr_dc = 0.6; //DC recovery voltage in Volts
+    double Vgr_dc = 0; //DC recovery voltage in Volts
 	double Tox = HEIGHT*1e-7;
-	double ND = 3e17; //  Channel Doping in atoms/cm^3
-    double N0 = 5.6e11; //  Density of gate insulator traps in /cm^3
+	double ND = 5e16; //  Channel Doping in atoms/cm^3
+    double N0 = 6.5e12; //  Channel Doping in atoms/cm^3
     double vfb = 0.4992; // Flatband voltage in Volts
-    double E1m = -0.65;     // eV
-    double E1s = 0.01;        // eV
-    double E2m = 0;         // eV
-    double E2s = 0.01;        // eV
+    double E1 = 0.65;      // eV
+    double E2 = 0;         // eV
     double EV = 0;         // eV
-	double SHWm = 5.9;      // eV
-	double SHWs = 0.01;       // eV
-	double Rm = 0.52;       //
-	double Rs = 0.01;         // eV
+	double SHW = 5.9;      // eV
+	double R = 0.52;       //
     double Gamma = 3.2e-7; // eV cm/V
 /*********************************************************************************/
 
@@ -138,9 +132,9 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 	double phif=VT*log(ND/ni);                // Bulk potential in V
 	double beta = 1/VT;                       // in 1/eV
 
-	double kt=Kb*(273+Temp);// Joules
+	double kt=Kb*(273+Temp);//// Joules
 	double cox=(ESiO2*E0)/Tox; // in F/cm^2
-	double Ldp=sqrt((ESi*E0*kt)/(q*q*ND)); // Debye Length in cm
+	double Ldp=sqrt((ESi*E0*kt)/(q*q*ND)); ////// Debye Length in cm
 
     double pi=22.0/7;
 	double mp=0.5*9.1e-31;                   // hole mass in kg (http://ecee.colorado.edu/~bart/book/effmass.htm)
@@ -150,83 +144,19 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
     double NV=2*(pow(static_cast<double>(2*pi*mp*Kb*(273+Temp)/(pow(h,2))),1.5))*1e-6; // in /cm^3
     double p0=(pow(ni,2))/ND;                 // Bulk minority concentration  /cm^3
 
-void generate_rand_params()
-{
-    double g1 = randnu();
-    for(int i = 0; i < E1_arr.size(); i++)
-    {
-        if(g1 <= E1_arr[i].second)
-        {
-            E1 = abs(E1_arr[i].first) < 1e-8 ? 0 : E1_arr[i].first;
-            break;
-        }
-    }
-    g1 = randnu();
-    for(int i = 0; i < E2_arr.size(); i++)
-    {
-        if(g1 <= E2_arr[i].second)
-        {
-            E2 = abs(E2_arr[i].first) < 1e-8 ? 0 : E2_arr[i].first;
-            break;
-        }
-    }
-
-   g1 = randnu();
-    for(int i = 0; i < SHW_arr.size(); i++)
-    {
-        if(g1 <= SHW_arr[i].second)
-        {
-            SHW = abs(SHW_arr[i].first) < 1e-8 ? 0 : SHW_arr[i].first;
-            break;
-        }
-    }
-
-    g1 = randnu();
-    for(int i = 0; i < R_arr.size(); i++)
-    {
-        if(g1 <= R_arr[i].second)
-        {
-            R = abs(R_arr[i].first) < 1e-8 ? 0 : R_arr[i].first;    //Check 1e-8.Might want to adjust for different values of sigma.
-            break;
-        }
-    }
-
-}
-
-
 void ox_field(double VGb_str)
 {
-
-//    if(VGb_str == 1.5) FSiO2 = 10e6;
-//    else if(VGb_str == 0) FSiO2 = 1e6;
 	//Solving for surface potential
 	int cnt=1;
 
 	int maxiter = 2500;
-	double lpsi;
-	double rpsi;
-    int b1;
+	double lpsi=0;
+	double rpsi = 3*phif;
 
-	if(VGb_str >= vfb)
-    {
-        lpsi = 0;
-        rpsi = 3*phif;
-        b1 = 1;
-    }
-
-    else
-    {
-        lpsi = -2*phif;
-        rpsi = 0;
-        b1 = -1;
-    }
-
-	double fvall = fpsi(VGb_str,vfb,lpsi,b1);
-    //cout<<"fvall "<<fvall<<endl;
-
-	double fvalu = fpsi(VGb_str,vfb,rpsi,b1);
-    //cout<<"fvalu "<<fvalu<<endl;
-    //cout<<VGb_str<<endl;
+	double fvall = fpsi(VGb_str,vfb,lpsi);
+    //cout<<fvall<<"'";
+	double fvalu = fpsi(VGb_str,vfb,rpsi);
+    //cout<<fvalu<<endl;
     double newpsi;
 	double tmp=0.0;
 	double tol=1e-10;
@@ -237,8 +167,8 @@ void ox_field(double VGb_str)
 	    //cout<<"hello"<<endl;
 		newpsi = (lpsi+rpsi)/2;
 		do {
-			fvalleft  = fpsi(VGb_str,vfb,lpsi,b1);
-			fvalright = fpsi(VGb_str,vfb,newpsi,b1);
+			fvalleft  = fpsi(VGb_str,vfb,lpsi);
+			fvalright = fpsi(VGb_str,vfb,newpsi);
 
 			if (fvalleft*fvalright < 0)
 					rpsi=newpsi;
@@ -249,47 +179,32 @@ void ox_field(double VGb_str)
             newpsi=tmp;
             cnt=cnt+1;
 		}
-
 		while(cnt < maxiter && fabs(fvalright) > tol );
 		psi_str=newpsi;
 	}
-
     //cout<<psi_str<<endl;
-
 	//Surface Electric Field
-	double FSi = sqrt(2)*(VT/Ldp)*sqrt((exp(-psi_str/VT)+(psi_str/VT)-1)+((exp(-2*phif/VT))*(exp(psi_str/VT)-(psi_str/VT)-1)));
+	double FSi=sqrt(2)*(VT/Ldp)*sqrt((exp(-psi_str/VT)+(psi_str/VT)-1)+((exp(-2*phif/VT))*(exp(psi_str/VT)-(psi_str/VT)-1)));
 
 	//Electric Field in SiO2
-	FSiO2 = FSi*ESi/ESiO2;
+	FSiO2=FSi*ESi/ESiO2;
 	//cout<<FSiO2<<endl;
 }
 
 void rate(double xvecbytox)
 {
     double ps=p0*(exp(beta*psi_str)); // Surface minority carrier concentration near the interface which is inversion carrier density in  /cm^3
-    //cout<<psi_str<<endl;
     double pf_ps = ps*vp*sp;
     double pf_nv = NV*vp*sp;
-    //cout<<"p0 "<<p0<<endl;
-    //cout<<"NV "<<NV<<", ps "<<ps<<endl;
 
     double delET = E1-EV;
-
-    // CHECK SIGN!
-    double epsT1_str = E2- delET - Gamma*(1-xvecbytox)*FSiO2;   // Need to check sign
-
+    double epsT1_str = E2- delET - Gamma*(1-xvecbytox)*FSiO2;
     //cout<<FSiO2<<endl;
-    //cout<<"epsT1_str "<<epsT1_str<<endl;
+    //cout<<epsT1_str<<endl;
     double eps12d_str = SHW/(pow((1 + R),2)) + R*epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
-    //double eps21d_str = SHW/(pow((1 + R),2)) - epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
-    double eps21d_str = eps12d_str - epsT1_str;
-
+    double eps21d_str = SHW/(pow((1 + R),2)) - epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
     //cout<<pf_ps<<","<<pf_nv<<endl;
     //cout<<beta<<endl;
-
-    //cout<<"eps21d_str "<<eps21d_str<<endl;
-    //cout<<"eps12d_str "<<eps12d_str<<endl;
-
     k13 = pf_ps*exp(-beta*eps12d_str);
 		if(k13 > pf_ps)
 			k13 = pf_ps;
@@ -305,59 +220,10 @@ int main(){
 	srand (8877);
 	double sw_time_1 [] = {1e-6, 1e3};
 
-	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/40;
+	num_defects = 25;
 
 	compartment_length = 0.5e-9;
-	z_comp_length = 0.5e-9;
 
-//**********************************************************************
-// PDFs for all 4 Gaussian distributions
-
-    somevar = E1m-3*E1s;
-    somevar2 = 0;
-    somevar3 = 6*E1s/20;
-
-for(int i = 0; i<20; i++)
-{
-    somevar += somevar3;
-    somevar2 += gaussian(somevar,E1m,E1s);
-    E1_arr.push_back(make_pair(somevar,somevar2));
-}
-
-for(int i = 0; i<20; i++)
-{
-    E1_arr[i].second = E1_arr[i].second/somevar2;
-    //cout<<E1_arr[i].first<<" "<<E1_arr[i].second<<endl;
-}
-
-    somevar = E2m-3*E2s;
-    somevar3 = 6*E2s/20;
-
-for(int i = 0; i<20; i++)
-{
-    somevar += somevar3;
-    E2_arr.push_back(make_pair(somevar,E1_arr[i].second));
-}
-
-    somevar = SHWm-3*SHWs;
-    somevar3 = 6*SHWs/20;
-
-for(int i = 0; i<20; i++)
-{
-    somevar += somevar3;
-    SHW_arr.push_back(make_pair(somevar,E1_arr[i].second));
-}
-
-    somevar = Rm-3*Rs;
-    somevar3 = 6*Rs/20;
-
-for(int i = 0; i<20; i++)
-{
-    somevar += somevar3;
-    R_arr.push_back(make_pair(somevar,E1_arr[i].second));
-}
-
-//**********************************************************************
 
 //  Rate constants for Stress
     k13 = 0.001;
@@ -367,14 +233,33 @@ for(int i = 0; i<20; i++)
 
 	float modder = (1e13)/(num_defects);
 
-	width = WIDTH*1e-9;
-	w_lim = (int) ceil(width/compartment_length);
-	length = LENGTH*1e-9;
-	l_lim = (int) ceil(length/compartment_length);
-	height = HEIGHT*1e-9;
-	z_lim =  (int) ceil(height/z_comp_length);
+	w_lim_1 = (int) ceil((THICKNESS)*1e-9/compartment_length);
+	w_lim_2 = (int) ceil((THICKNESS+WIDTH)*1e-9/compartment_length);
+	w_lim_3 = (int) ceil((2*THICKNESS+WIDTH)*1e-9/compartment_length);
+
+	l_lim = (int) ceil(LENGTH*1e-9/compartment_length);
+
+	z_lim_2 = (int) ceil((HEIGHT+THICKNESS)*1e-9/compartment_length);
+    z_lim_1 = (int) ceil(HEIGHT*1e-9/compartment_length);
 
 
+    probtotal = WIDTH + 2*HEIGHT + THICKNESS*2;
+    prob1 = WIDTH/probtotal;
+    prob2 = prob1 + HEIGHT/probtotal;
+    prob3 = prob2 + HEIGHT/probtotal;
+    prob4 = prob3 + THICKNESS/probtotal;
+
+
+    //ox_field(Vgs_dc);
+
+    for(int o = 0; o <= THICKNESS*1e-9/compartment_length - 1; o++)
+    {
+        //rate((double)o/z_lim);
+        k13_arr.push_back(k13);
+        //cout<<k13<<endl;
+        k31_arr.push_back(k31);
+        //cout<<k31<<endl;
+    }
 
 	bool hit1 = 0;
 	bool hit2 = 0;
@@ -384,13 +269,56 @@ for(int i = 0; i<20; i++)
 
 	int d1 =0;
     alpha_k13_total = 0;                   // Initial total forward propensity: from ground state to transport state
-    alpha_k31_total = 0;                  // Initial reverse propensity:
+    alpha_k31_total = 0;                   // Initial reverse propensity:
+
 
 //  Distribute defect sites spatially in the bulk
 	for(d1= 0; d1<num_defects; d1++){
+        q1 = 0;
+        q2 = 0;
 		c1 = rand_l_lim(l_lim);
-		c2 = rand_w_lim(w_lim);
-		c3 = rand_tox_lim(z_lim);
+        prob = randnu();
+
+        if(prob < prob1)                        //top
+        {
+            c2 = rand_w_lim(w_lim_1,w_lim_2);
+            c3 = rand_z_lim(z_lim_1, z_lim_2);
+            if(c3==z_lim_1) q1 = 1;
+            else if(c3==z_lim_2-1) q2 = 1;
+        }
+
+        else if (prob < prob2)              //left
+        {
+            c2 = rand_w_lim(0,w_lim_1);
+            c3 = rand_z_lim(0, z_lim_1);
+            if(c2==w_lim_1-1) q1 = 1;
+            else if(c2==0) q2 = 1;
+
+        }
+
+        else if(prob < prob3)               //right
+        {
+            c2 = rand_w_lim(w_lim_2,w_lim_3);
+            c3 = rand_z_lim(0, z_lim_1);
+            if(c2==w_lim_2) q1 = 1;
+            else if(c2==w_lim_3-1) q2 = 1;
+        }
+
+        else if (prob < prob4)              //top-right
+        {
+            c2 = rand_w_lim(w_lim_2,w_lim_3);
+            c3 = rand_z_lim(z_lim_1, z_lim_2);
+            if(c2==w_lim_2 && c3 == z_lim_1) q1 = 1;
+            else if(c2 == w_lim_2-1 && c3 == z_lim_2-1) q2 = 1;
+        }
+
+        else                                //top-left
+        {
+            c2 = rand_w_lim(0,w_lim_1);
+            c3 = rand_z_lim(z_lim_1, z_lim_2);
+            if(c2==w_lim_1-1 && c3 == z_lim_1) q1 = 1;
+            else if(c2 == 0 && c3 == z_lim_2-1) q2 = 1;
+        }
 
 		vector<threeD>::iterator it;
 		it = find_if(init_sites.begin(), init_sites.end(), locate_threeD(c1,c2,c3));
@@ -402,8 +330,8 @@ for(int i = 0; i<20; i++)
 
 		else
         {
-			init_sites.push_back(threeD(c1,c2,c3));
-			defect_rates.insert(make_pair(threeD(c1,c2,c3), pair<double, double> (0,0)));
+            alpha_k13_total += k13_arr[c3];
+			init_sites.push_back(threeD(c1,c2,c3,q1,q2));
 		}
 	}
 
@@ -427,33 +355,9 @@ for(int i = 0; i<20; i++)
     myfile2.open ("Str_data.txt", ios::out | ios::trunc);
     myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
     multimap <int, threeD>::iterator itstr,itrec;
-    map<threeD, pair <double, double> >::iterator itrate;
+
 	kil=1;
 	int flagger =0;
-
-
-    ox_field(Vgs_dc);
-    //cout<<FSiO2<<endl;
-    //cout<<psi_str<<endl;
-    for(itrate = defect_rates.begin(); itrate!=defect_rates.end(); itrate++)
-    {
-        generate_rand_params();
-        E1_store.push_back(E1);
-        E2_store.push_back(E2);
-        SHW_store.push_back(SHW);
-        R_store.push_back(R);
-        rate((double)itrate->first.z/z_lim);
-        //cout<<k13<<" "<<k31<<endl;
-
-        (itrate->second).first = k13;
-        //cout<<k13<<endl;
-        alpha_k13_total += k13;
-        (itrate->second).second = k31;
-        //cout<<k31<<endl;
-    }
-    cout<<k31<<endl;
-    cout<<k13<<endl;
-
 
 	while (t < sw_time_1[1] && flagger == 0){
 
@@ -463,7 +367,7 @@ for(int i = 0; i<20; i++)
 			r1 = randnu();
 		}
 
-		alpha0 =  alpha_k13_total + alpha_k31_total;
+		alpha0 =  alpha_k13_total+ alpha_k31_total;
 
 		tau = (1/alpha0)*log(1/r1);
 		if (tau < 0){
@@ -511,8 +415,67 @@ for(int i = 0; i<20; i++)
 
         }
 
+//t = t + tau;
+//        if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//
+//			i[0]=i[0]+1;
+//		}
+//
+//		else if(( t < 1e-5*i[1] ) && ( t >= 1e-5*(i[1]-1) ) && (i[1]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[1]=i[1]+1;
+//		}
+//
+//		else if(( t < 1e-4*i[2] ) && ( t >= 1e-4*(i[2]-1) ) && (i[2]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[2]=i[2]+1;
+//		}
+//
+//		else if(( t < 1e-3*i[3] ) && ( t >= 1e-3*(i[3]-1) ) && (i[3]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[3]=i[3]+1;
+//		}
+//
+//		else if(( t < 1e-2*i[4] ) && ( t >= 1e-2*(i[4]-1) ) && (i[4]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[4]=i[4]+1;
+//		}
+//
+//		else if(( t < 1e-1*i[5] ) && ( t >= 1e-1*(i[5]-1) ) && (i[5]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[5]=i[5]+1;
+//		}
+//
+//		else if(( t < i[6] ) && ( t >= (i[6]-1) ) && (i[6]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[6]=i[6]+1;
+//		}
+//
+//		else if(( t < 1e1*i[7] ) && ( t >= 1e1*(i[7]-1) ) && (i[7]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[7]=i[7]+1;
+//		}
+//
+//		else if(( t < 1e2*i[8] ) && ( t >= 1e2*(i[8]-1) ) && (i[8]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[8]=i[8]+1;
+//		}
+//
+//		else if(( t < 1e3*i[9] ) && ( t >= 1e3*(i[9]-1) ) && (i[9]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[9]=i[9]+1;
+//		}
+//
+//		else if(( t < 1e4*i[10] ) && ( t >= 1e4*(i[10]-1) ) && (i[10]<11)){
+//			myfile <<t<<' '<< emi <<endl;
+//			i[10]=i[10]+1;
+//		}
+//
 		counter = counter + 1;
 	}
+
+	//myfile <<t<<' '<<emi<<endl;
 
 	end_of_str_traps = emi;
 
@@ -537,22 +500,20 @@ for(int i = 0; i<20; i++)
     }
 	counter = 0;
 
-    ox_field(Vgr_dc);
-    //cout<<psi_str<<endl;
-    //cout<<FSiO2<<endl;
-    int cn = 0;
-    for(itrate = defect_rates.begin(); itrate != defect_rates.end(); itrate++)
+//  Rate constants for recovery
+	k13 = 0.00001;
+	k31 = 0.001;
+
+//  Total Propensities
+//    ox_field(Vgr_dc);
+
+    for(int o = 0; o < THICKNESS*1e-9/compartment_length - 1; o++)
     {
-
-        E1 = E1_store[cn];
-        E2 = E2_store[cn];
-        SHW = SHW_store[cn];
-        R = R_store[cn];
-        cn += 1;
-
-        rate((double)itrate->first.z/z_lim);
-        (itrate->second).first = k13;
-        (itrate->second).second = k31;
+        //rate((double) o/z_lim);
+        k13_arr[o] = k13;
+        //cout<<k13;
+        k31_arr[o] = k31;
+        //cout<<k31;
     }
 
     alpha_k13_total = 0;
@@ -560,16 +521,17 @@ for(int i = 0; i<20; i++)
 
     for(map<int,threeD>::iterator o = bulk_defects.begin(); o != bulk_defects.end(); o++)
     {
-        alpha_k31_total += defect_rates[o->second].second;
+        alpha_k31_total += k31_arr[o->second.z];
+
     }
     //cout<<alpha_k31_total<<endl;
-    cout<<k31<<endl;
     for(vector<threeD>::iterator o = init_sites.begin(); o != init_sites.end(); o++)
     {
-        alpha_k13_total += defect_rates[*o].first;
+        alpha_k13_total += k13_arr[o->z];
+
     }
     //cout<<alpha_k13_total<<endl;
-    cout<<k13<<endl;
+
     while (t < sw_time_1[1] && flagger == 0){
 
 		kil = 0;
@@ -623,6 +585,65 @@ for(int i = 0; i<20; i++)
             //myfile<<t<<' '<<emi<<endl;
             emiprev = emi;
         }
+
+//        t = t + tau;
+//
+//		if (( t < 1e-6*i[0] ) && ( t >= 1e-6*(i[0]-1) ) && (i[0]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[0]=i[0]+1;
+//		}
+//
+//		else if(( t < 1e-5*i[1] ) && ( t >= 1e-5*(i[1]-1) ) && (i[1]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[1]=i[1]+1;
+//		}
+//
+//		else if(( t < 1e-4*i[2] ) && ( t >= 1e-4*(i[2]-1) ) && (i[2]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[2]=i[2]+1;
+//		}
+//
+//		else if(( t < 1e-3*i[3] ) && ( t >= 1e-3*(i[3]-1) ) && (i[3]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[3]=i[3]+1;
+//		}
+//
+//		else if(( t < 1e-2*i[4] ) && ( t >= 1e-2*(i[4]-1) ) && (i[4]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[4]=i[4]+1;
+//		}
+//
+//		else if(( t < 1e-1*i[5] ) && ( t >= 1e-1*(i[5]-1) ) && (i[5]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[5]=i[5]+1;
+//		}
+//
+//		else if(( t < i[6] ) && ( t >= (i[6]-1) ) && (i[6]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[6]=i[6]+1;
+//		}
+//
+//		else if(( t < 1e1*i[7] ) && ( t >= 1e1*(i[7]-1) ) && (i[7]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[7]=i[7]+1;
+//		}
+//
+//		else if(( t < 1e2*i[8] ) && ( t >= 1e2*(i[8]-1) ) && (i[8]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[8]=i[8]+1;
+//		}
+//
+//		else if(( t < 1e3*i[9] ) && ( t >= 1e3*(i[9]-1) ) && (i[9]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[9]=i[9]+1;
+//		}
+//
+//		else if(( t < 1e4*i[10] ) && ( t >= 1e4*(i[10]-1) ) && (i[10]<11)){
+//			myfile1 <<t<<' '<< emi <<endl;
+//			i[10]=i[10]+1;
+//		}
+//
+//        myfile <<t<< ' '<< emi <<endl;
 
 		counter = counter + 1;
 
@@ -693,16 +714,16 @@ int rand_l_lim(int l_lim){
 	return randllim;
 }
 
-int rand_w_lim(int w_lim){
-	int randwlim = (int) floor((randnu()*(w_lim)));
-	if(randwlim==w_lim) return w_lim-1;
+int rand_w_lim(int w_lim1, int w_lim2){
+	int randwlim = (int) (w_lim1 + floor((randnu()*(w_lim2-w_lim1))));
+    if(randwlim==w_lim2) return w_lim2-1;
 	return randwlim;
 }
 
-int rand_tox_lim(int z_lim){
-	int randtoxlim = (int) floor((randnu()*(z_lim)));
-	if(randtoxlim==z_lim) return z_lim-1;
-	return randtoxlim;
+int rand_z_lim(int z_lim1, int z_lim2){
+	int randzlim = (int) (z_lim1 + floor((randnu()*(z_lim2 - z_lim1))));
+	if(randzlim==z_lim2) return z_lim2-1;
+	return randzlim;
 }
 
 double roundin(double d) {
@@ -723,15 +744,15 @@ void carry_out_reaction() {
 		for (it = bulk_defects.begin(); it != bulk_defects.end(); it++){
 
 			temp12 = temp11/alpha0;
-			temp11 = temp11 + defect_rates[it->second].second;
+			temp11 = temp11 + k31;
 			temp13 = temp11/alpha0;
 
 			if ((r2 >= temp12) && (r2 < temp13)) {
                 init_sites.push_back(it->second);
-                alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
-                alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
+                alpha_k13_total = alpha_k13_total + k13_arr[it->second.z];
+                alpha_k31_total = alpha_k31_total - k31_arr[it->second.z];
                 bulk_defects.erase(it);
-                //setzero(alpha_k31_total);
+                setzero(alpha_k31_total);
                 emi--;
                 break;
 			}
@@ -745,16 +766,16 @@ void carry_out_reaction() {
 		for (it = init_sites.begin(); it != init_sites.end(); it++){
 
 			temp12 = temp11/alpha0;
-			temp11 = temp11 + defect_rates[*it].first;
+			temp11 = temp11 + k13;
 			temp13 = temp11/alpha0;
 			if ((r2 >= temp12) && (r2 < temp13)) {
 
 				bulk_defects.insert(pair<int, threeD> (0,*it));
-				alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
-				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
+				alpha_k13_total = alpha_k13_total - k13_arr[it->z];
+				alpha_k31_total = alpha_k31_total + k31_arr[it->z];
 				init_sites.erase(it);
 
-                //setzero(alpha_k13_total);
+                setzero(alpha_k13_total);
 				emi++;
 				break;
 			}
