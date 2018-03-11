@@ -1,15 +1,15 @@
 t = 1e-5
 
-1 defects recovered
+0 defects recovered
 t = 1e-3
 
-1 defects recovered
+0 defects recovered
 t = 1e-1
 
-1 defects recovered
+0 defects recovered
 t = 1e0
 
-1 defects recovered
+0 defects recovered
 t = 1e3
 
-1 defects recovered
+0 defects recovered
