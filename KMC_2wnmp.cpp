@@ -34,6 +34,7 @@ int c1, c2, c3, c4;
 int k1, k2, k3;
 double somevar, somevar2, somevar3;
 double alpha0, yemp, tau;
+double kc1,kc2;
 double temp13, temp11, temp12;
 double width, length, height;
 int w_lim, l_lim, z_lim;
@@ -112,13 +113,13 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 
 //// Changeable parameters
     double Temp = 130;
-    double Vgs_dc = 1.5; //DC stess voltage in Volts
+    double Vgs_dc = 2; //DC stess voltage in Volts
     double Vgr_dc = 0; //DC recovery voltage in Volts
 	double Tox = HEIGHT*1e-7;
 	double ND = 1e18; //  Channel Doping in atoms/cm^3
     double N0 = 5e20; //  Density of gate insulator traps in /cm^3
     double vfb = 0.4992; // Flatband voltage in Volts
-    double E1m = -0.5;     // eV
+    double E1m = -0.6;     // eV
     double E1s = 0.2;        // eV
     double E2m = 0;         // eV
     double E2s = 0.05;        // eV
@@ -319,17 +320,60 @@ void rate(double xvecbytox)
 		if(k31 > pf_nv)
 			k31 = pf_nv;
 
+
+    //k13 = 0.2;
+    //k31 = 0.8;
 }
 
 int main(){
 
-	srand (99982);
+
+	srand (341);
+	//cout<<rand()<<endl;
 	double sw_time_1 [] = {1e-6, 1e3};
 
 	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/2;
 
 	compartment_length = 0.5e-9;
 	z_comp_length = 0.5e-9;
+	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
+
+	float modder = (1e13)/(num_defects);
+
+	width = WIDTH*1e-9;
+	w_lim = (int) ceil(width/compartment_length);
+	length = LENGTH*1e-9;
+	l_lim = (int) ceil(length/compartment_length);
+	height = HEIGHT*1e-9;
+	z_lim =  (int) ceil(height/z_comp_length);
+
+	bool hit1 = 0;
+	bool hit2 = 0;
+	bool hit3 = 0;
+	bool hit4 = 0;
+	bool hit5 = 0;
+
+	E1_store.resize(num_defects);
+	E2_store.resize(num_defects);
+	R_store.resize(num_defects);
+    SHW_store.resize(num_defects);
+
+	ofstream myfile1,myfile,myfile2,myfile3;
+	// Uncomment for writing in single text file
+	//myfile1.open ("Rec.txt", ios::out | ios::trunc);
+	//myfile.open ("Str.txt", ios::out | ios::trunc);
+
+	myfile1.open ("Rec.csv", ios::out | ios::trunc);
+	myfile.open ("Str.csv", ios::out | ios::trunc);
+
+    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
+    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
+    multimap <int, threeD>::iterator itstr,itrec;
+    map<threeD, pair <double, double> >::iterator itrate;
+
+    int cn = 0;
+	int flagger = 0;
+    int d1 = 0;
 
 //**********************************************************************
 // PDFs for all 4 Gaussian distributions
@@ -399,6 +443,20 @@ if(Rs != 0)
     }
 }
 
+t_prev = sw_time_1[0];
+while(t_prev <= sw_time_1[1])
+{
+    myfile<<t_prev<<",";
+    myfile1<<t_prev<<",";
+    t_prev = t_prev + pow(10,floor( log10(t_prev)));
+}
+
+myfile<<t_prev<<endl;
+myfile1<<t_prev<<endl;
+
+for (int ii = 0; ii < 5; ii++)
+{
+
 
 //**********************************************************************
 
@@ -406,25 +464,13 @@ if(Rs != 0)
     //k13 = 0.001;
 	//k31 = 0.00001;
 
-	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
+	hit1 = 0;
+	hit2 = 0;
+	hit3 = 0;
+	hit4 = 0;
+	hit5 = 0;
 
-	float modder = (1e13)/(num_defects);
-
-	width = WIDTH*1e-9;
-	w_lim = (int) ceil(width/compartment_length);
-	length = LENGTH*1e-9;
-	l_lim = (int) ceil(length/compartment_length);
-	height = HEIGHT*1e-9;
-	z_lim =  (int) ceil(height/z_comp_length);
-
-
-	bool hit1 = 0;
-	bool hit2 = 0;
-	bool hit3 = 0;
-	bool hit4 = 0;
-	bool hit5 = 0;
-
-	int d1 =0;
+	d1 =0;
     alpha_k13_total = 0;                   // Initial total forward propensity: from ground state to transport state
     alpha_k31_total = 0;                  // Initial reverse propensity:
 
@@ -450,7 +496,6 @@ if(Rs != 0)
 	}
 
 
-
 //*********************************************************************************
 //******************************     STRESS     ***********************************
 //*********************************************************************************
@@ -460,32 +505,41 @@ if(Rs != 0)
 	emi = 0;
     emiprev = 0;
 	t = sw_time_1[0];
-	float i[] = {2,2,2,2,2,2,2,2,2,2,2};
+
 	counter = 0;
-	ofstream myfile1,myfile,myfile2,myfile3;
-	myfile1.open ("Rec.txt", ios::out | ios::trunc);
-	myfile.open ("Str.txt", ios::out | ios::trunc);
-    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
-    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
-    multimap <int, threeD>::iterator itstr,itrec;
-    map<threeD, pair <double, double> >::iterator itrate;
-	kil=1;
-	int flagger =0;
+//	ofstream myfile1,myfile,myfile2,myfile3;
+//	// Uncomment for writing in single text file
+//	//myfile1.open ("Rec.txt", ios::out | ios::trunc);
+//	//myfile.open ("Str.txt", ios::out | ios::trunc);
+//	//
+//
+//	myfile1.open ("Rec.csv", ios::out | ios::app);
+//	myfile.open ("Str.csv", ios::out | ios::app);
+//
+//    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
+//    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
+//    multimap <int, threeD>::iterator itstr,itrec;
+//    map<threeD, pair <double, double> >::iterator itrate;
+	flagger =0;
 
 
     ox_field(Vgs_dc);
+//    kc1 = 0.001;
+//    kc2 = 0.009;
     //cout<<"Field "<<FSiO2<<endl;
     //cout<<"pf_ps "<<pf_ps<<endl;
     //cout<<"pf_nv "<<pf_nv<<endl;
 
     //cout<<psi_str<<endl;
+    cn = 0;
     for(itrate = defect_rates.begin(); itrate!=defect_rates.end(); itrate++)
     {
         generate_rand_params();
-        E1_store.push_back(E1);
-        E2_store.push_back(E2);
-        SHW_store.push_back(SHW);
-        R_store.push_back(R);
+        E1_store[cn] = E1;
+        E2_store[cn] = E2;
+        SHW_store[cn] = SHW;
+        R_store[cn] = R;
+        cn += 1;
 //        cout<<"E1 "<<E1<<endl;
 //        cout<<"E2 "<<E2<<endl;
 //        cout<<"Shw "<<SHW<<endl;
@@ -501,7 +555,10 @@ if(Rs != 0)
         (itrate->second).second = k31;
         //cout<<k31<<endl;
     }
-//    cout<<alpha_k13_total<<endl;
+    //cout<<E1_store[0]<<" "<<E1_store[20]<<" "<<E1_store[40]<<endl;
+    cout<<alpha_k13_total<<endl;
+
+
 //    cout<<"E1_str "<<E1<<endl;
 //    cout<<"E2_str "<<E2<<endl;
 //    cout<<"SHW_str "<<SHW<<endl;
@@ -513,12 +570,12 @@ if(Rs != 0)
 //    cout<<"k13_str "<<k13<<endl;
 
 //    cout<<"Field "<<FSiO2<<endl;
-
+//    cout<<(int) -0.9<<endl;
 	while (t < sw_time_1[1] && flagger == 0){
 
-		kil =0;
+
 		r1 = randnu();
-		while (r1 ==0){
+		while (r1 == 0){
 			r1 = randnu();
 		}
 
@@ -545,27 +602,35 @@ if(Rs != 0)
             carry_out_reaction();
         }
 
-
-        if (t == sw_time_1[0]) t_prev = pow(10,floor(log10(t)));
-
+        if (t == sw_time_1[0])
+        {
+            t_prev = pow(10,floor(log10(t)));
+            //cout<<tau;
+            //myfile<<t_prev<<' '<<emiprev<<endl;
+            //t_prev = t_prev*pow(10,0.1);
+        }
             t = t + tau;
-            //t_prev = pow(10,floor(log10(t)));
 
-            while(t_prev < t && t_prev <= sw_time_1[1])
+            while (t_prev < t && t_prev <= sw_time_1[1])
+
             {
-                myfile<<t_prev<<' '<<emiprev<<endl;
-                //t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
-                t_prev = t_prev*pow(10,0.1);                    //log scale
+                // Uncomment when writing in single file
+                //myfile<<t_prev<<' '<<emiprev<<endl;
+                myfile<<emiprev<<",";
+                t_prev = t_prev + pow(10,floor( log10(t_prev))); // linear scale, check at t = 1
+
+
+                //t_prev = t_prev*pow(10,0.1);                    //log scale
+                //if(t_prev==1) cout<<log10(t_prev);
             }
 
             if(t <= sw_time_1[1])
             {
-                myfile<<t<<' '<<emi<<endl;
+                //myfile<<t<<' '<<emi<<endl; //Comment this out if you need evenly spaced time vector from e-6 to e3
                 emiprev = emi;
             }
 
-//
-//
+
 //        else
 //        {
 //            t = t + tau;
@@ -602,8 +667,10 @@ if(Rs != 0)
 //        //t_prev = t_prev + pow(10,floor(log10(t_prev)));   //linear scale
 //        t_prev = t_prev*pow(10,0.1);                        //log scale
 //    }
-    myfile<<sw_time_1[1]<<' '<<emi<<endl;
 
+    // Uncomment when writing in single file
+    //myfile<<sw_time_1[1]<<' '<<emi<<endl;
+      myfile<<emi<<endl;
 
 	end_of_str_traps = emi;     //CHECK!
 
@@ -613,8 +680,6 @@ if(Rs != 0)
 		myfile2<<(itstr->second).x<<" "<<(itstr->second).y<<" "<<(itstr->second).z<<endl;
 	}
 	myfile2<<endl;
-    myfile2.close();
-    myfile.close();
 
 //*********************************************************************************
 //****************************     RECOVERY     ***********************************
@@ -622,29 +687,33 @@ if(Rs != 0)
 
 	t = sw_time_1[0];
 //  fill(i,i+sizeof(i),2);
-	for (int k=0; k<11; k++) {
-    i[k] = 2;
-    }
+
 	counter = 0;
 
+    emiprev = end_of_str_traps;
     ox_field(Vgr_dc);
+//    kc1 = 0.001;
+//    kc2 = 0.05;
 //    cout<<psi_str<<endl;
 //    cout<<FSiO2<<endl;
-    int cn = 0;
+      cn = 0;
     for(itrate = defect_rates.begin(); itrate != defect_rates.end(); itrate++)
     {
-
+        // This can be done since ordering of index of map won't change
         E1 = E1_store[cn];
         E2 = E2_store[cn];
         SHW = SHW_store[cn];
         R = R_store[cn];
         cn += 1;
 
-// Uodate forward and backwrd rates at possible defect sites
-        rate((double)itrate->first.z/z_lim);
+        // Uodate forward and backwrd rates at possible defect sites
+        rate((double) (itrate->first.z)/z_lim);
         (itrate->second).first = k13;
         (itrate->second).second = k31;
     }
+
+    //cout<<E1_store[0]<<" "<<E1_store[20]<<" "<<E1_store[40]<<endl;
+    //cout<<E1_store.size()<<endl;
 
     alpha_k13_total = 0;
     alpha_k31_total = 0;
@@ -669,7 +738,6 @@ if(Rs != 0)
 
     while (t < sw_time_1[1] && flagger == 0){
 
-		kil = 0;
 		r1 = randnu();
 		while (r1 ==0){
 			r1 = randnu();
@@ -696,27 +764,32 @@ if(Rs != 0)
 
         }
 
-        if (t == sw_time_1[0]) t_prev = pow(10,floor(log10(t)));
+        if (t == sw_time_1[0])
+        {
+            t_prev = pow(10,floor(log10(t)));
+            //myfile1<<t_prev<<' '<<emiprev<<endl;
+            //t_prev = t_prev*pow(10,0.1);
+        }
 
             t = t + tau;
 
             while(t_prev < t && t_prev < sw_time_1[1])
             {
-                myfile1<<t_prev<<' '<<end_of_str_traps<<endl;
-                //t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
-                t_prev = t_prev*pow(10,0.1);                      //log scale
+                // Uncomment for single file
+                //myfile1<<t_prev<<' '<<emiprev<<endl;
+                myfile1<<emiprev<<",";
+                t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
+                //t_prev = t_prev*pow(10,0.1);                      //log scale
+
             }
 
             if(t < sw_time_1[1])
             {
-                myfile1<<t<<' '<<emi<<endl;
+                //myfile1<<t<<' '<<emi<<endl; //Comment this out if you need evenly spaced time vector from 1e-6 to 1e3
                 emiprev = emi;
             }
 
-
 		counter = counter + 1;
-        myfile1<<sw_time_1[1]<<' '<<emi<<endl;
-
 
 		if (t > 1e-5 && hit1 == 0) {
 			hit1 = 1;
@@ -769,8 +842,19 @@ if(Rs != 0)
 		}
     }
 
+    // Uncomment for single file
+    //myfile1<<sw_time_1[1]<<' '<<emi<<endl;
+    myfile1<<emi<<endl;
+
+    init_sites.clear();
+    defect_rates.clear();
+    bulk_defects.clear();
+
+}
     myfile1.close();
     myfile3.close();
+    myfile2.close();
+    myfile.close();
 
 	return 0;
 }
