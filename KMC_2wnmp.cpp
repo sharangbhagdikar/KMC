@@ -37,6 +37,7 @@ double alpha0, yemp, tau;
 double kc1,kc2;
 double temp13, temp11, temp12;
 double width, length, height;
+double delVot = 0,delVt_prev;
 int w_lim, l_lim, z_lim;
 
 #define WIDTH  50
@@ -115,17 +116,18 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
     double Temp = 130;
     double Vgs_dc = 2; //DC stess voltage in Volts
     double Vgr_dc = 0; //DC recovery voltage in Volts
-	double Tox = HEIGHT*1e-7;
+	double Tox = HEIGHT*1e-7;             //cm
+	double dev_area = WIDTH*LENGTH*1E-14; // cm2
 	double ND = 1e18; //  Channel Doping in atoms/cm^3
     double N0 = 5e20; //  Density of gate insulator traps in /cm^3
     double vfb = 0.4992; // Flatband voltage in Volts
-    double E1m = -0.6;     // eV
+    double E1m = -0.3;     // eV
     double E1s = 0.2;        // eV
     double E2m = 0;         // eV
     double E2s = 0.05;        // eV
     double EV = 0;         // eV
-	double SHWm = 5;      // 5.9eV
-	double SHWs = 1.2;       // eV
+	double SHWm = 3;      // 5.9eV
+	double SHWs = 0.5;       // eV
 	double Rm = 0.5;       //0.52
 	double Rs = 0;         // eV
     double Gamma = 2e-8; // eV cm/V
@@ -328,9 +330,11 @@ void rate(double xvecbytox)
 int main(){
 
 
-	srand (341);
+	srand (99981);
 	//cout<<rand()<<endl;
 	double sw_time_1 [] = {1e-6, 1e3};
+
+    //****************Device Dimensions*********************//
 
 	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/2;
 
@@ -346,6 +350,10 @@ int main(){
 	l_lim = (int) ceil(length/compartment_length);
 	height = HEIGHT*1e-9;
 	z_lim =  (int) ceil(height/z_comp_length);
+
+
+    //******************************************************//
+
 
 	bool hit1 = 0;
 	bool hit2 = 0;
@@ -454,13 +462,13 @@ while(t_prev <= sw_time_1[1])
 myfile<<t_prev<<endl;
 myfile1<<t_prev<<endl;
 
-for (int ii = 0; ii < 5; ii++)
+for (int ii = 0; ii < 2; ii++)
 {
 
 
 //**********************************************************************
 
-//  Rate constants for Stress
+    //Rate constants for Stress
     //k13 = 0.001;
 	//k31 = 0.00001;
 
@@ -501,9 +509,10 @@ for (int ii = 0; ii < 5; ii++)
 //*********************************************************************************
 
 
-
 	emi = 0;
     emiprev = 0;
+    delVot = 0;
+    delVt_prev = 0;
 	t = sw_time_1[0];
 
 	counter = 0;
@@ -513,8 +522,8 @@ for (int ii = 0; ii < 5; ii++)
 //	//myfile.open ("Str.txt", ios::out | ios::trunc);
 //	//
 //
-//	myfile1.open ("Rec.csv", ios::out | ios::app);
-//	myfile.open ("Str.csv", ios::out | ios::app);
+//	  myfile1.open ("Rec.csv", ios::out | ios::app);
+//	  myfile.open ("Str.csv", ios::out | ios::app);
 //
 //    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
 //    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
@@ -524,8 +533,8 @@ for (int ii = 0; ii < 5; ii++)
 
 
     ox_field(Vgs_dc);
-//    kc1 = 0.001;
-//    kc2 = 0.009;
+    //kc1 = 0.001;
+    //kc2 = 0.009;
     //cout<<"Field "<<FSiO2<<endl;
     //cout<<"pf_ps "<<pf_ps<<endl;
     //cout<<"pf_nv "<<pf_nv<<endl;
@@ -616,7 +625,9 @@ for (int ii = 0; ii < 5; ii++)
             {
                 // Uncomment when writing in single file
                 //myfile<<t_prev<<' '<<emiprev<<endl;
-                myfile<<emiprev<<",";
+
+                //myfile<<emiprev<<",";
+                myfile<<delVt_prev<<",";
                 t_prev = t_prev + pow(10,floor( log10(t_prev))); // linear scale, check at t = 1
 
 
@@ -627,7 +638,9 @@ for (int ii = 0; ii < 5; ii++)
             if(t <= sw_time_1[1])
             {
                 //myfile<<t<<' '<<emi<<endl; //Comment this out if you need evenly spaced time vector from e-6 to e3
+
                 emiprev = emi;
+                delVt_prev = delVot;
             }
 
 
@@ -670,7 +683,12 @@ for (int ii = 0; ii < 5; ii++)
 
     // Uncomment when writing in single file
     //myfile<<sw_time_1[1]<<' '<<emi<<endl;
-      myfile<<emi<<endl;
+
+
+      //myfile<<emi<<endl;
+      myfile<<delVot<<endl;
+
+
 
 	end_of_str_traps = emi;     //CHECK!
 
@@ -690,7 +708,8 @@ for (int ii = 0; ii < 5; ii++)
 
 	counter = 0;
 
-    emiprev = end_of_str_traps;
+
+
     ox_field(Vgr_dc);
 //    kc1 = 0.001;
 //    kc2 = 0.05;
@@ -777,8 +796,13 @@ for (int ii = 0; ii < 5; ii++)
             {
                 // Uncomment for single file
                 //myfile1<<t_prev<<' '<<emiprev<<endl;
-                myfile1<<emiprev<<",";
+
+
+                //myfile1<<emiprev<<",";
+                myfile1<<delVt_prev<<",";
                 t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
+
+
                 //t_prev = t_prev*pow(10,0.1);                      //log scale
 
             }
@@ -786,8 +810,11 @@ for (int ii = 0; ii < 5; ii++)
             if(t < sw_time_1[1])
             {
                 //myfile1<<t<<' '<<emi<<endl; //Comment this out if you need evenly spaced time vector from 1e-6 to 1e3
+
+                delVt_prev = delVot;
                 emiprev = emi;
             }
+
 
 		counter = counter + 1;
 
@@ -844,7 +871,10 @@ for (int ii = 0; ii < 5; ii++)
 
     // Uncomment for single file
     //myfile1<<sw_time_1[1]<<' '<<emi<<endl;
-    myfile1<<emi<<endl;
+
+
+    //myfile1<<emi<<endl;
+    myfile1<<delVot<<endl;
 
     init_sites.clear();
     defect_rates.clear();
@@ -906,6 +936,8 @@ void carry_out_reaction() {
                 init_sites.push_back(it->second);
                 alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
                 alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
+
+                delVot -= 1000*q*Tox*(z_lim - (it->second).z)/(dev_area*ESiO2*E0);
                 bulk_defects.erase(it);
                 //setzero(alpha_k31_total);
                 emi--;
@@ -928,6 +960,8 @@ void carry_out_reaction() {
 				bulk_defects.insert(pair<int, threeD> (0,*it));
 				alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
 				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
+
+				delVot += 1000*q*Tox*(z_lim - it->z)/(dev_area*ESiO2*E0);
 				init_sites.erase(it);
 
                 //setzero(alpha_k13_total);
