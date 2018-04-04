@@ -937,7 +937,7 @@ void carry_out_reaction() {
                 alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
                 alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
 
-                delVot -= 1000*q*Tox*(z_lim - (it->second).z)/(dev_area*ESiO2*E0);
+                delVot -= 1000*q*Tox*(1 - ((it->second).z)/z_lim)/(dev_area*ESiO2*E0);
                 bulk_defects.erase(it);
                 //setzero(alpha_k31_total);
                 emi--;
@@ -961,7 +961,7 @@ void carry_out_reaction() {
 				alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
 				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
 
-				delVot += 1000*q*Tox*(z_lim - it->z)/(dev_area*ESiO2*E0);
+				delVot += 1000*q*Tox*(1 - (it->z)/z_lim)/(dev_area*ESiO2*E0);
 				init_sites.erase(it);
 
                 //setzero(alpha_k13_total);
