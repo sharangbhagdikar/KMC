@@ -52,7 +52,8 @@ double alpha_k31_total;
 double temp_1, temp_2;
 double err;
 vector < pair <double, double> > E1_arr, E2_arr, SHW_arr, R_arr;
-vector <double> E1_store, E2_store, SHW_store, R_store, gauss_arr;
+vector <double> E1_store, E2_store, SHW_store, R_store, gauss_arr, avg_delVth;
+vector <int> avg_traps_str, avg_traps_rec;
 
 double psi_str, FSiO2;
 int emi, emiprev, previous_emi, previous_emiH2;
@@ -62,6 +63,8 @@ double t,t_prev,t_base;
 int prev,curr;
 int counter, f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16;
 double r, r1, r2;
+
+
 
 double kk1, kk2, kk3;
 
@@ -73,7 +76,7 @@ struct threeD {
 	int z;
 
     bool operator==(const threeD &o) const {
-     return ((x == o.x) && (z == o.z) && (y == o.y));
+    return ((x == o.x) && (z == o.z) && (y == o.y));
      }
 
 	bool operator<(const threeD &o)  const {
@@ -113,21 +116,26 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 /**********************************************************************************/
 
 //// Changeable parameters
-    double Temp = 130;
+    double Temp = 65;
     double Vgs_dc = 2; //DC stess voltage in Volts
+
     double Vgr_dc = 0; //DC recovery voltage in Volts
 	double Tox = HEIGHT*1e-7;             //cm
 	double dev_area = WIDTH*LENGTH*1E-14; // cm2
 	double ND = 1e18; //  Channel Doping in atoms/cm^3
     double N0 = 5e20; //  Density of gate insulator traps in /cm^3
     double vfb = 0.4992; // Flatband voltage in Volts
-    double E1m = -0.3;     // eV
+
+    double E1m = -0.5;     // eV
     double E1s = 0.2;        // eV
+
     double E2m = 0;         // eV
     double E2s = 0.05;        // eV
     double EV = 0;         // eV
-	double SHWm = 3;      // 5.9eV
-	double SHWs = 0.5;       // eV
+
+	double SHWm = 2;      // 5.9eV
+	double SHWs = 0.1;       // eV
+
 	double Rm = 0.5;       //0.52
 	double Rs = 0;         // eV
     double Gamma = 2e-8; // eV cm/V
@@ -300,7 +308,7 @@ void rate(double xvecbytox)
 
     // CHECK SIGN!
     double epsT1_str = E2 - delET - Gamma*(1-xvecbytox)*FSiO2;   // Need to check sign
-
+    //cout<<xvecbytox<<endl;
     //cout<<FSiO2<<endl;
     //cout<<"epsT1_str "<<epsT1_str<<endl;
     double eps12d_str = SHW/(pow((1 + R),2)) + R*epsT1_str/(1+R) + R*(pow(static_cast<double>(epsT1_str),2))/(4*SHW);
@@ -330,7 +338,7 @@ void rate(double xvecbytox)
 int main(){
 
 
-	srand (99981);
+	srand (5531);
 	//cout<<rand()<<endl;
 	double sw_time_1 [] = {1e-6, 1e3};
 
@@ -340,9 +348,6 @@ int main(){
 
 	compartment_length = 0.5e-9;
 	z_comp_length = 0.5e-9;
-	mul_fac = 1/(compartment_length*compartment_length*z_comp_length*1e6);
-
-	float modder = (1e13)/(num_defects);
 
 	width = WIDTH*1e-9;
 	w_lim = (int) ceil(width/compartment_length);
@@ -452,19 +457,27 @@ if(Rs != 0)
 }
 
 t_prev = sw_time_1[0];
+
+cn = 0;
 while(t_prev <= sw_time_1[1])
 {
     myfile<<t_prev<<",";
     myfile1<<t_prev<<",";
     t_prev = t_prev + pow(10,floor( log10(t_prev)));
+    cn += 1;
 }
 
 myfile<<t_prev<<endl;
 myfile1<<t_prev<<endl;
 
-for (int ii = 0; ii < 2; ii++)
-{
+avg_traps_str.assign(cn+1,0);
+avg_traps_rec.assign(cn+1,0);
 
+int cnt;
+int sim_size = 100;
+for (int ii = 0; ii < sim_size; ii++)
+{
+    cnt = 0;
 
 //**********************************************************************
 
@@ -555,6 +568,7 @@ for (int ii = 0; ii < 2; ii++)
 //        cout<<"R "<<R<<endl;
 
         rate((double) (itrate->first.z)/z_lim);
+
 //        if(k31>10000)
 //        cout<<k13<<" "<<k31<<endl;
 
@@ -599,6 +613,8 @@ for (int ii = 0; ii < 2; ii++)
 		if (tau < 0){
 			flagger = 1;
 			myfile << "Error"<<endl;
+//			cout<<"r1 "<<r1<<endl;
+//			cout<<"alpha "<<alpha0<<endl;
 		}
 
         if(t+tau <= sw_time_1[1])
@@ -626,8 +642,11 @@ for (int ii = 0; ii < 2; ii++)
                 // Uncomment when writing in single file
                 //myfile<<t_prev<<' '<<emiprev<<endl;
 
-                //myfile<<emiprev<<",";
-                myfile<<delVt_prev<<",";
+                myfile<<emiprev<<",";
+                avg_traps_str[cnt] += emiprev;
+                cnt += 1;
+
+                //myfile<<delVt_prev<<",";
                 t_prev = t_prev + pow(10,floor( log10(t_prev))); // linear scale, check at t = 1
 
 
@@ -671,7 +690,6 @@ for (int ii = 0; ii < 2; ii++)
 
 //        }
 
-		counter = counter + 1;
 	}
 
 //    while(t_prev < sw_time_1[1])
@@ -685,9 +703,11 @@ for (int ii = 0; ii < 2; ii++)
     //myfile<<sw_time_1[1]<<' '<<emi<<endl;
 
 
-      //myfile<<emi<<endl;
-      myfile<<delVot<<endl;
+      myfile<<emi<<endl;
+      avg_traps_str[cnt] = avg_traps_str[cnt] + emi;
+      //myfile<<delVot<<endl;
 
+      cnt = 0;
 
 
 	end_of_str_traps = emi;     //CHECK!
@@ -705,8 +725,6 @@ for (int ii = 0; ii < 2; ii++)
 
 	t = sw_time_1[0];
 //  fill(i,i+sizeof(i),2);
-
-	counter = 0;
 
 
 
@@ -769,7 +787,18 @@ for (int ii = 0; ii < 2; ii++)
 		tau = (1/alpha0)*log(1/r1);
 		if (tau < 0){
 			flagger = 1;
-			myfile << "Error"<<endl;
+			myfile1 << "Error"<<endl;
+//
+//            cout<<"alpha "<<alpha0<<endl;
+//            cout<<"alphaf "<<alpha_k13_total<<endl;
+//            cout<<"alphar "<<alpha_k31_total<<endl;
+//            for(itrate = defect_rates.begin(); itrate!=defect_rates.end(); itrate++)
+//            {
+//                cout<<itrate->second.first<<endl;
+//                cout<<itrate->second.second<<endl;
+//            }
+
+            return 0;
 		}
 
         if(t+tau <= sw_time_1[1])
@@ -798,8 +827,10 @@ for (int ii = 0; ii < 2; ii++)
                 //myfile1<<t_prev<<' '<<emiprev<<endl;
 
 
-                //myfile1<<emiprev<<",";
-                myfile1<<delVt_prev<<",";
+                myfile1<<emiprev<<",";
+                avg_traps_rec[cnt] += emiprev;
+                cnt += 1;
+                //myfile1<<delVt_prev<<",";
                 t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
 
 
@@ -815,8 +846,6 @@ for (int ii = 0; ii < 2; ii++)
                 emiprev = emi;
             }
 
-
-		counter = counter + 1;
 
 		if (t > 1e-5 && hit1 == 0) {
 			hit1 = 1;
@@ -867,25 +896,38 @@ for (int ii = 0; ii < 2; ii++)
 			myfile3<<endl;
 			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
 		}
+
+
     }
 
     // Uncomment for single file
     //myfile1<<sw_time_1[1]<<' '<<emi<<endl;
 
 
-    //myfile1<<emi<<endl;
-    myfile1<<delVot<<endl;
+    myfile1<<emi<<endl;
+    avg_traps_rec[cnt] += emi;
+    //myfile1<<delVot<<endl;
 
     init_sites.clear();
     defect_rates.clear();
     bulk_defects.clear();
 
+
 }
+
+    //Printing out average values
+    for(int h = 0; h < avg_traps_rec.size(); h++)
+    {
+        myfile1<<avg_traps_rec[h]*1.0/sim_size<<",";
+        myfile<<avg_traps_str[h]*1.0/sim_size<<",";
+    }
+
     myfile1.close();
     myfile3.close();
     myfile2.close();
     myfile.close();
 
+    //cout<<avg_traps_rec[82]<<endl;
 	return 0;
 }
 
@@ -934,12 +976,16 @@ void carry_out_reaction() {
 
 			if ((r2 >= temp12) && (r2 < temp13)) {
                 init_sites.push_back(it->second);
-                alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
-                alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
 
-                delVot -= 1000*q*Tox*(1 - ((it->second).z)/z_lim)/(dev_area*ESiO2*E0);
+                alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
+
+                if(bulk_defects.size()!=1) alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
+                else alpha_k31_total = 0;
+
+                delVot -= 1000*q*Tox*(1 - ((it->second).z)/(1.0*z_lim))/(dev_area*ESiO2*E0);
                 bulk_defects.erase(it);
-                //setzero(alpha_k31_total);
+
+                setzero(delVot);
                 emi--;
                 break;
 			}
@@ -958,13 +1004,16 @@ void carry_out_reaction() {
 			if ((r2 >= temp12) && (r2 < temp13)) {
 
 				bulk_defects.insert(pair<int, threeD> (0,*it));
-				alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
+
+				if(init_sites.size() != 1) alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
+				else alpha_k13_total = 0;
+
 				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
 
-				delVot += 1000*q*Tox*(1 - (it->z)/z_lim)/(dev_area*ESiO2*E0);
+				delVot += 1000*q*Tox*(1 - (it->z)/(1.0*z_lim))/(dev_area*ESiO2*E0);
 				init_sites.erase(it);
 
-                //setzero(alpha_k13_total);
+                //setzero(delVot);
 				emi++;
 				break;
 			}
