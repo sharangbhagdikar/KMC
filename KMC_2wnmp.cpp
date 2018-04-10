@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <map>
+#include <sstream>
 using namespace std;
 
 double randnu ();
@@ -42,9 +43,9 @@ int w_lim, l_lim, z_lim;
 
 #define WIDTH  50
 #define LENGTH 20
-#define HEIGHT 1
+#define HEIGHT 0.76
 
-#define fpsi(VGS,VFB,psi,bot) VGS - VFB - psi - bot*sqrt( (2*q*ESi*E0*ND) * (VT*exp(-psi/VT) + psi - VT + exp(-2*phif/VT)*(VT*exp(psi/VT) - psi - VT)))/cox
+#define fpsi(VGS,VFB,psi,bot) VGS - VFB - psi - bot*sqrt( (2*q*ESi*E0*ND) * ( VT*exp(-psi/VT) + psi - VT + exp(-2*phif/VT)*(VT*exp(psi/VT) - psi - VT) ))/cox
 #define gaussian(x,mu,sigma) exp(- pow((x-mu)/sigma,2)/2)/(sqrt(2*pi)*sigma)
 
 double alpha_k13_total;
@@ -52,7 +53,7 @@ double alpha_k31_total;
 double temp_1, temp_2;
 double err;
 vector < pair <double, double> > E1_arr, E2_arr, SHW_arr, R_arr;
-vector <double> E1_store, E2_store, SHW_store, R_store, gauss_arr, avg_delVth;
+vector <double> E1_store, E2_store, SHW_store, R_store, gauss_arr, avg_vth_str, avg_vth_rec;
 vector <int> avg_traps_str, avg_traps_rec;
 
 double psi_str, FSiO2;
@@ -117,17 +118,17 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 
 //// Changeable parameters
     double Temp = 65;
-    double Vgs_dc = 2; //DC stess voltage in Volts
+    double Vgs_dc = 1.5; //DC stess voltage in Volts
 
-    double Vgr_dc = 0; //DC recovery voltage in Volts
+    double Vgr_dc = 0;                    //DC recovery voltage in Volts
 	double Tox = HEIGHT*1e-7;             //cm
 	double dev_area = WIDTH*LENGTH*1E-14; // cm2
-	double ND = 1e18; //  Channel Doping in atoms/cm^3
-    double N0 = 5e20; //  Density of gate insulator traps in /cm^3
-    double vfb = 0.4992; // Flatband voltage in Volts
+	double ND = 5e17;       //  Channel Doping in atoms/cm^3
+    double N0 = 5e20;       //  Density of gate insulator traps in /cm^3
+    double vfb = -0.4992;   // Flatband voltage in Volts
 
-    double E1m = -0.5;     // eV
-    double E1s = 0.2;        // eV
+    double E1m = -0.3;     // eV
+    double E1s = 0.05;        // eV
 
     double E2m = 0;         // eV
     double E2s = 0.05;        // eV
@@ -138,7 +139,7 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 
 	double Rm = 0.5;       //0.52
 	double Rs = 0;         // eV
-    double Gamma = 2e-8; // eV cm/V
+    double Gamma = 6e-9; // eV cm/V
 /*********************************************************************************/
 
 	double VT1 = (Kb*300)/q;    // Thermal voltage Vt@ 300 K = 0.0259eV in eV
@@ -249,6 +250,8 @@ void ox_field(double VGb_str)
         rpsi = 0;
         b1 = -1;
     }
+    //cout<<"rpsi "<<rpsi<<endl;
+    //cout<<"lpsi "<<lpsi<<endl;
 
 	double fvall = fpsi(VGb_str,vfb,lpsi,b1);
     //cout<<"fvall "<<fvall<<endl;
@@ -285,6 +288,7 @@ void ox_field(double VGb_str)
 
     //cout<<psi_str<<endl;
 
+    //psi_str = 1.129843;
 	//Surface Electric Field
 	double FSi = sqrt(2)*(VT/Ldp)*sqrt((exp(-psi_str/VT)+(psi_str/VT)-1)+((exp(-2*phif/VT))*(exp(psi_str/VT)-(psi_str/VT)-1)));
 
@@ -307,7 +311,7 @@ void rate(double xvecbytox)
     double delET = E1-EV;
 
     // CHECK SIGN!
-    double epsT1_str = E2 - delET - Gamma*(1-xvecbytox)*FSiO2;   // Need to check sign
+    double epsT1_str = E2 - delET - Gamma*(1 - xvecbytox - 0.5/z_lim)*FSiO2;   // Need to check sign
     //cout<<xvecbytox<<endl;
     //cout<<FSiO2<<endl;
     //cout<<"epsT1_str "<<epsT1_str<<endl;
@@ -338,16 +342,17 @@ void rate(double xvecbytox)
 int main(){
 
 
-	srand (5531);
+	srand (9948);
 	//cout<<rand()<<endl;
 	double sw_time_1 [] = {1e-6, 1e3};
 
     //****************Device Dimensions*********************//
 
-	num_defects = (int) LENGTH*WIDTH*HEIGHT*1/2;
+	//num_defects = (int) LENGTH*WIDTH*HEIGHT*1/2;
+    num_defects = 50;
 
 	compartment_length = 0.5e-9;
-	z_comp_length = 0.5e-9;
+	z_comp_length = HEIGHT*1e-9/5;
 
 	width = WIDTH*1e-9;
 	w_lim = (int) ceil(width/compartment_length);
@@ -355,7 +360,6 @@ int main(){
 	l_lim = (int) ceil(length/compartment_length);
 	height = HEIGHT*1e-9;
 	z_lim =  (int) ceil(height/z_comp_length);
-
 
     //******************************************************//
 
@@ -371,13 +375,23 @@ int main(){
 	R_store.resize(num_defects);
     SHW_store.resize(num_defects);
 
-	ofstream myfile1,myfile,myfile2,myfile3;
+    ostringstream file_name;
+    string str_file,rec_file;
+    file_name<<"E1_"<<E1m<<"_shw"<<SHWm<<"_R_"<<Rm<<"_"<<Temp<<"C"<<".csv";
+    rec_file = "rec_" + file_name.str();
+    //file_name.str(string());
+    str_file = "str_" + file_name.str();
+
+	ofstream myfile1,myfile,myfile2,myfile3, myfile4, myfile5;
+
 	// Uncomment for writing in single text file
 	//myfile1.open ("Rec.txt", ios::out | ios::trunc);
 	//myfile.open ("Str.txt", ios::out | ios::trunc);
 
-	myfile1.open ("Rec.csv", ios::out | ios::trunc);
-	myfile.open ("Str.csv", ios::out | ios::trunc);
+	myfile1.open (rec_file.c_str(), ios::out | ios::trunc);
+	myfile.open (str_file.c_str(), ios::out | ios::trunc);
+	myfile4.open(("Vstr_" + file_name.str()).c_str(), ios::out | ios::trunc);
+	myfile5.open(("Vrec_" + file_name.str()).c_str(), ios::out | ios::trunc);
 
     myfile2.open ("Str_data.txt", ios::out | ios::trunc);
     myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
@@ -395,14 +409,14 @@ int main(){
 // mu = 1 and sigma=1
 somevar = -2;
 somevar2 = 0;
-for(int i = 0; i < 20; i++)
+for(int i = 0; i < 50; i++)
 {
-    somevar += 0.3;
+    somevar += 0.12;
     somevar2 += gaussian(somevar,1,1);
     gauss_arr.push_back(somevar2);
 }
 
-for(int i = 0; i<20; i++)
+for(int i = 0; i<50; i++)
 {
     gauss_arr[i] = gauss_arr[i]/somevar2;
     //cout<<gauss_arr[i]<<endl;
@@ -411,9 +425,9 @@ for(int i = 0; i<20; i++)
 if(E1s != 0)
 {
     somevar = E1m-3*E1s;
-    somevar3 = 6*E1s/20;
+    somevar3 = 6*E1s/50;
 
-    for(int i = 0; i<20; i++)
+    for(int i = 0; i<50; i++)
     {
         somevar += somevar3;
         E1_arr.push_back(make_pair(somevar,gauss_arr[i]));
@@ -423,9 +437,9 @@ if(E1s != 0)
 if(E2s != 0)
 {
     somevar = E2m-3*E2s;
-    somevar3 = 6*E2s/20;
+    somevar3 = 6*E2s/50;
 
-    for(int i = 0; i<20; i++)
+    for(int i = 0; i<50; i++)
     {
         somevar += somevar3;
         E2_arr.push_back(make_pair(somevar,gauss_arr[i]));
@@ -435,9 +449,9 @@ if(E2s != 0)
 if(SHWs != 0)
 {
     somevar = SHWm-3*SHWs;
-    somevar3 = 6*SHWs/20;
+    somevar3 = 6*SHWs/50;
 
-    for(int i = 0; i<20; i++)
+    for(int i = 0; i<50; i++)
     {
         somevar += somevar3;
         SHW_arr.push_back(make_pair(somevar,gauss_arr[i]));
@@ -447,9 +461,9 @@ if(SHWs != 0)
 if(Rs != 0)
 {
     somevar = Rm-3*Rs;
-    somevar3 = 6*Rs/20;
+    somevar3 = 6*Rs/50;
 
-    for(int i = 0; i<20; i++)
+    for(int i = 0; i<50; i++)
     {
         somevar += somevar3;
         R_arr.push_back(make_pair(somevar,gauss_arr[i]));
@@ -463,15 +477,24 @@ while(t_prev <= sw_time_1[1])
 {
     myfile<<t_prev<<",";
     myfile1<<t_prev<<",";
+    myfile4<<t_prev<<",";
+    myfile5<<t_prev<<",";
+
     t_prev = t_prev + pow(10,floor( log10(t_prev)));
     cn += 1;
 }
 
 myfile<<t_prev<<endl;
 myfile1<<t_prev<<endl;
+myfile4<<t_prev<<endl;
+myfile5<<t_prev<<endl;
+
 
 avg_traps_str.assign(cn+1,0);
 avg_traps_rec.assign(cn+1,0);
+avg_vth_str.assign(cn+1,0);
+avg_vth_rec.assign(cn+1,0);
+
 
 int cnt;
 int sim_size = 100;
@@ -643,10 +666,11 @@ for (int ii = 0; ii < sim_size; ii++)
                 //myfile<<t_prev<<' '<<emiprev<<endl;
 
                 myfile<<emiprev<<",";
+                myfile4<<delVt_prev<<",";
                 avg_traps_str[cnt] += emiprev;
+                avg_vth_str[cnt] += delVt_prev;
                 cnt += 1;
 
-                //myfile<<delVt_prev<<",";
                 t_prev = t_prev + pow(10,floor( log10(t_prev))); // linear scale, check at t = 1
 
 
@@ -704,8 +728,10 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
       myfile<<emi<<endl;
-      avg_traps_str[cnt] = avg_traps_str[cnt] + emi;
-      //myfile<<delVot<<endl;
+      myfile4<<delVot<<endl;
+
+      avg_traps_str[cnt] += emi;
+      avg_vth_str[cnt] += delVot;
 
       cnt = 0;
 
@@ -828,9 +854,11 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
                 myfile1<<emiprev<<",";
+                myfile5<<delVt_prev<<",";
                 avg_traps_rec[cnt] += emiprev;
+                avg_vth_rec[cnt] += delVt_prev;
                 cnt += 1;
-                //myfile1<<delVt_prev<<",";
+
                 t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
 
 
@@ -905,8 +933,9 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
     myfile1<<emi<<endl;
+    myfile5<<delVot<<endl;
     avg_traps_rec[cnt] += emi;
-    //myfile1<<delVot<<endl;
+    avg_vth_rec[cnt] += delVot;
 
     init_sites.clear();
     defect_rates.clear();
@@ -920,12 +949,16 @@ for (int ii = 0; ii < sim_size; ii++)
     {
         myfile1<<avg_traps_rec[h]*1.0/sim_size<<",";
         myfile<<avg_traps_str[h]*1.0/sim_size<<",";
+        myfile4<<avg_vth_str[h]/sim_size<<",";
+        myfile5<<avg_vth_rec[h]/sim_size<<",";
     }
 
     myfile1.close();
     myfile3.close();
     myfile2.close();
     myfile.close();
+    myfile5.close();
+    myfile4.close();
 
     //cout<<avg_traps_rec[82]<<endl;
 	return 0;
@@ -982,7 +1015,7 @@ void carry_out_reaction() {
                 if(bulk_defects.size()!=1) alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
                 else alpha_k31_total = 0;
 
-                delVot -= 1000*q*Tox*(1 - ((it->second).z)/(1.0*z_lim))/(dev_area*ESiO2*E0);
+                delVot -= 1000*q*Tox*(1 - ((it->second).z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
                 bulk_defects.erase(it);
 
                 setzero(delVot);
@@ -1010,7 +1043,7 @@ void carry_out_reaction() {
 
 				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
 
-				delVot += 1000*q*Tox*(1 - (it->z)/(1.0*z_lim))/(dev_area*ESiO2*E0);
+				delVot += 1000*q*Tox*(1 - (it->z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
 				init_sites.erase(it);
 
                 //setzero(delVot);
