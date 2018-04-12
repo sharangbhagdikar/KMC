@@ -43,7 +43,7 @@ int w_lim, l_lim, z_lim;
 
 #define WIDTH  50
 #define LENGTH 20
-#define HEIGHT 0.76
+#define HEIGHT 1
 
 #define fpsi(VGS,VFB,psi,bot) VGS - VFB - psi - bot*sqrt( (2*q*ESi*E0*ND) * ( VT*exp(-psi/VT) + psi - VT + exp(-2*phif/VT)*(VT*exp(psi/VT) - psi - VT) ))/cox
 #define gaussian(x,mu,sigma) exp(- pow((x-mu)/sigma,2)/2)/(sqrt(2*pi)*sigma)
@@ -97,9 +97,10 @@ struct locate_threeD {
     }
 };
 
-vector <threeD> init_sites;
+vector <threeD> init_sites, bulk_defects;
 vector < double > k13_arr, k31_arr;
-multimap<int, threeD> bulk_defects;
+
+//multimap<int, threeD> bulk_defects;
 map <threeD, pair<double, double> > defect_rates;
 
 /**********************************************************************************/
@@ -112,23 +113,23 @@ const double ESiO2 = 3.9; // Relative permittivity of Silicon-di-oxide
 const double E0 = 8.854e-14; // Absolute permittivity in farad/cm
 const double ni0 = 1e10; // Intrensic carrier concentration at 300 K in /cm^3
 const double Eg = 1.12; // Bandgap of Si at 300 K in eV
-const double Kb= 1.380658e-23; // Boltzman constant in J/K
+const double Kb = 1.380658e-23; // Boltzman constant in J/K
 
 /**********************************************************************************/
 
 //// Changeable parameters
-    double Temp = 65;
-    double Vgs_dc = 1.5; //DC stess voltage in Volts
+    double Temp = -40;
+    double Vgs_dc = 2; //DC stess voltage in Volts
 
     double Vgr_dc = 0;                    //DC recovery voltage in Volts
 	double Tox = HEIGHT*1e-7;             //cm
 	double dev_area = WIDTH*LENGTH*1E-14; // cm2
-	double ND = 5e17;       //  Channel Doping in atoms/cm^3
+	double ND = 1e18;       //  Channel Doping in atoms/cm^3
     double N0 = 5e20;       //  Density of gate insulator traps in /cm^3
-    double vfb = -0.4992;   // Flatband voltage in Volts
+    double vfb = 0.4992;   // Flatband voltage in Volts
 
-    double E1m = -0.3;     // eV
-    double E1s = 0.05;        // eV
+    double E1m = 0.2;     // eV
+    double E1s = 0.2;        // eV
 
     double E2m = 0;         // eV
     double E2s = 0.05;        // eV
@@ -139,7 +140,7 @@ const double Kb= 1.380658e-23; // Boltzman constant in J/K
 
 	double Rm = 0.5;       //0.52
 	double Rs = 0;         // eV
-    double Gamma = 6e-9; // eV cm/V
+    double Gamma = 2e-8; // eV cm/V
 /*********************************************************************************/
 
 	double VT1 = (Kb*300)/q;    // Thermal voltage Vt@ 300 K = 0.0259eV in eV
@@ -222,7 +223,6 @@ void generate_rand_params()
         }
     }
 }
-
 
 void ox_field(double VGb_str)
 {
@@ -342,17 +342,17 @@ void rate(double xvecbytox)
 int main(){
 
 
-	srand (9948);
+	srand (99985);
 	//cout<<rand()<<endl;
 	double sw_time_1 [] = {1e-6, 1e3};
 
     //****************Device Dimensions*********************//
 
 	//num_defects = (int) LENGTH*WIDTH*HEIGHT*1/2;
-    num_defects = 50;
+    num_defects = 500;
 
 	compartment_length = 0.5e-9;
-	z_comp_length = HEIGHT*1e-9/5;
+	z_comp_length = HEIGHT*1e-9/2;
 
 	width = WIDTH*1e-9;
 	w_lim = (int) ceil(width/compartment_length);
@@ -390,12 +390,13 @@ int main(){
 
 	myfile1.open (rec_file.c_str(), ios::out | ios::trunc);
 	myfile.open (str_file.c_str(), ios::out | ios::trunc);
-	myfile4.open(("Vstr_" + file_name.str()).c_str(), ios::out | ios::trunc);
-	myfile5.open(("Vrec_" + file_name.str()).c_str(), ios::out | ios::trunc);
+	//myfile4.open(("Vstr_" + file_name.str()).c_str(), ios::out | ios::trunc);
+	//myfile5.open(("Vrec_" + file_name.str()).c_str(), ios::out | ios::trunc);
 
-    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
-    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
-    multimap <int, threeD>::iterator itstr,itrec;
+    //myfile2.open ("Str_data.txt", ios::out | ios::trunc);
+    //myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
+    //multimap <int, threeD>::iterator itstr,itrec;
+    vector <threeD>::iterator itstr, itrec;
     map<threeD, pair <double, double> >::iterator itrate;
 
     int cn = 0;
@@ -477,8 +478,8 @@ while(t_prev <= sw_time_1[1])
 {
     myfile<<t_prev<<",";
     myfile1<<t_prev<<",";
-    myfile4<<t_prev<<",";
-    myfile5<<t_prev<<",";
+    //myfile4<<t_prev<<",";
+    //myfile5<<t_prev<<",";
 
     t_prev = t_prev + pow(10,floor( log10(t_prev)));
     cn += 1;
@@ -486,17 +487,18 @@ while(t_prev <= sw_time_1[1])
 
 myfile<<t_prev<<endl;
 myfile1<<t_prev<<endl;
-myfile4<<t_prev<<endl;
-myfile5<<t_prev<<endl;
+//myfile4<<t_prev<<endl;
+//myfile5<<t_prev<<endl;
 
 
 avg_traps_str.assign(cn+1,0);
 avg_traps_rec.assign(cn+1,0);
-avg_vth_str.assign(cn+1,0);
-avg_vth_rec.assign(cn+1,0);
+//avg_vth_str.assign(cn+1,0);
+//avg_vth_rec.assign(cn+1,0);
 
 
 int cnt;
+
 int sim_size = 100;
 for (int ii = 0; ii < sim_size; ii++)
 {
@@ -552,30 +554,11 @@ for (int ii = 0; ii < sim_size; ii++)
 	t = sw_time_1[0];
 
 	counter = 0;
-//	ofstream myfile1,myfile,myfile2,myfile3;
-//	// Uncomment for writing in single text file
-//	//myfile1.open ("Rec.txt", ios::out | ios::trunc);
-//	//myfile.open ("Str.txt", ios::out | ios::trunc);
-//	//
-//
-//	  myfile1.open ("Rec.csv", ios::out | ios::app);
-//	  myfile.open ("Str.csv", ios::out | ios::app);
-//
-//    myfile2.open ("Str_data.txt", ios::out | ios::trunc);
-//    myfile3.open ("Rec_data.txt", ios::out | ios::trunc);
-//    multimap <int, threeD>::iterator itstr,itrec;
-//    map<threeD, pair <double, double> >::iterator itrate;
 	flagger =0;
 
 
     ox_field(Vgs_dc);
-    //kc1 = 0.001;
-    //kc2 = 0.009;
-    //cout<<"Field "<<FSiO2<<endl;
-    //cout<<"pf_ps "<<pf_ps<<endl;
-    //cout<<"pf_nv "<<pf_nv<<endl;
 
-    //cout<<psi_str<<endl;
     cn = 0;
     for(itrate = defect_rates.begin(); itrate!=defect_rates.end(); itrate++)
     {
@@ -585,38 +568,17 @@ for (int ii = 0; ii < sim_size; ii++)
         SHW_store[cn] = SHW;
         R_store[cn] = R;
         cn += 1;
-//        cout<<"E1 "<<E1<<endl;
-//        cout<<"E2 "<<E2<<endl;
-//        cout<<"Shw "<<SHW<<endl;
-//        cout<<"R "<<R<<endl;
+
 
         rate((double) (itrate->first.z)/z_lim);
 
-//        if(k31>10000)
-//        cout<<k13<<" "<<k31<<endl;
-
         (itrate->second).first = k13;
-        //cout<<k13<<" ";
+
         alpha_k13_total += k13;
         (itrate->second).second = k31;
-        //cout<<k31<<endl;
+
     }
-    //cout<<E1_store[0]<<" "<<E1_store[20]<<" "<<E1_store[40]<<endl;
-    cout<<alpha_k13_total<<endl;
 
-
-//    cout<<"E1_str "<<E1<<endl;
-//    cout<<"E2_str "<<E2<<endl;
-//    cout<<"SHW_str "<<SHW<<endl;
-//    cout<<"R_str "<<R<<endl;
-//    cout<<"field "<<FSiO2<<endl;
-//    cout<<"surface potential "<<psi_str<<endl;
-
-//    cout<<"k31_str "<<k31<<endl;
-//    cout<<"k13_str "<<k13<<endl;
-
-//    cout<<"Field "<<FSiO2<<endl;
-//    cout<<(int) -0.9<<endl;
 	while (t < sw_time_1[1] && flagger == 0){
 
 
@@ -666,9 +628,9 @@ for (int ii = 0; ii < sim_size; ii++)
                 //myfile<<t_prev<<' '<<emiprev<<endl;
 
                 myfile<<emiprev<<",";
-                myfile4<<delVt_prev<<",";
+                //myfile4<<delVt_prev<<",";
                 avg_traps_str[cnt] += emiprev;
-                avg_vth_str[cnt] += delVt_prev;
+                //avg_vth_str[cnt] += delVt_prev;
                 cnt += 1;
 
                 t_prev = t_prev + pow(10,floor( log10(t_prev))); // linear scale, check at t = 1
@@ -728,22 +690,23 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
       myfile<<emi<<endl;
-      myfile4<<delVot<<endl;
+      //myfile4<<delVot<<endl;
 
       avg_traps_str[cnt] += emi;
-      avg_vth_str[cnt] += delVot;
+      //avg_vth_str[cnt] += delVot;
 
       cnt = 0;
 
 
 	end_of_str_traps = emi;     //CHECK!
 
-	myfile2 << emi <<" out of "<< num_defects<<" defects broken in bulk"<<endl;
-
-	for (itstr = bulk_defects.begin(); itstr != bulk_defects.end(); itstr++) {
-		myfile2<<(itstr->second).x<<" "<<(itstr->second).y<<" "<<(itstr->second).z<<endl;
-	}
-	myfile2<<endl;
+//	myfile2 << emi <<" out of "<< num_defects<<" defects broken in bulk"<<endl;
+//
+//	for (itstr = bulk_defects.begin(); itstr != bulk_defects.end(); itstr++) {
+//		myfile2<<itstr->x<<" "<<itstr->y<<" "<<itstr->z<<endl;
+//	}
+//	myfile2<<endl;
+	cout<<alpha0<<endl;
 
 //*********************************************************************************
 //****************************     RECOVERY     ***********************************
@@ -784,9 +747,9 @@ for (int ii = 0; ii < sim_size; ii++)
 // After rates have been updated, recalculation of alphak13_tot and alphak31 is required
 
 // alpha_k31_total is updated from existing bulk defects
-    for(map<int,threeD>::iterator o = bulk_defects.begin(); o != bulk_defects.end(); o++)
+    for(vector<threeD>::iterator o = bulk_defects.begin(); o != bulk_defects.end(); o++)
     {
-        alpha_k31_total += defect_rates[o->second].second;
+        alpha_k31_total += defect_rates[*o].second;
     }
     //cout<<alpha_k31_total<<endl;
     //cout<<"k31_rec "<<k31<<endl;
@@ -854,9 +817,9 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
                 myfile1<<emiprev<<",";
-                myfile5<<delVt_prev<<",";
+                //myfile5<<delVt_prev<<",";
                 avg_traps_rec[cnt] += emiprev;
-                avg_vth_rec[cnt] += delVt_prev;
+                //avg_vth_rec[cnt] += delVt_prev;
                 cnt += 1;
 
                 t_prev = t_prev + pow(10,floor(log10(t_prev))); // linear scale
@@ -873,57 +836,57 @@ for (int ii = 0; ii < sim_size; ii++)
                 delVt_prev = delVot;
                 emiprev = emi;
             }
-
-
-		if (t > 1e-5 && hit1 == 0) {
-			hit1 = 1;
-			myfile3 <<"t = 1e-5"<<endl;
-			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
-				myfile3<<(itrec->second).x<<" "<<(itrec->second).y<<" "<<(itrec->second).z<<endl;
-			}
-			myfile3<<endl;
-			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
-		}
-
-		if (t > 1e-3 && hit2 == 0) {
-			hit2 = 1;
-			myfile3 <<"t = 1e-3"<<endl;
-			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
-				myfile3<<(itrec->second).x<<" "<<(itrec->second).y<<" "<<(itrec->second).z<<endl;
-			}
-			myfile3<<endl;
-			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
-		}
-
-		if (t > 1e-1 && hit3 == 0) {
-			hit3 = 1;
-			myfile3 <<"t = 1e-1"<<endl;
-			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
-				myfile3<<(itrec->second).x<<" "<<(itrec->second).y<<" "<<(itrec->second).z<<endl;
-			}
-			myfile3<<endl;
-			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
-		}
-
-		if (t > 0.999 && hit4 == 0) {
-			hit4 = 1;
-			myfile3 <<"t = 1e0"<<endl;
-			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
-				myfile3<<(itrec->second).x<<" "<<(itrec->second).y<<" "<<(itrec->second).z<<endl;
-			}
-			myfile3<<endl;
-			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
-		}
-
-		if (t > 999 && hit5 == 0) {
-			hit5 = 1;
-			myfile3 <<"t = 1e3"<<endl;
-			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
-				myfile3<<(itrec->second).x<<" "<<(itrec->second).y<<" "<<(itrec->second).z<<endl;
-			}
-			myfile3<<endl;
-			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
-		}
+//
+//
+//		if (t > 1e-5 && hit1 == 0) {
+//			hit1 = 1;
+//			myfile3 <<"t = 1e-5"<<endl;
+//			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
+//				myfile3<<itrec->x<<" "<<itrec->y<<" "<<itrec->z<<endl;
+//			}
+//			myfile3<<endl;
+//			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
+//		}
+//
+//		if (t > 1e-3 && hit2 == 0) {
+//			hit2 = 1;
+//			myfile3 <<"t = 1e-3"<<endl;
+//			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
+//				myfile3<<itrec->x<<" "<<itrec->y<<" "<<itrec->z<<endl;
+//			}
+//			myfile3<<endl;
+//			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
+//		}
+//
+//		if (t > 1e-1 && hit3 == 0) {
+//			hit3 = 1;
+//			myfile3 <<"t = 1e-1"<<endl;
+//			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
+//				myfile3<<itrec->x<<" "<<itrec->y<<" "<<itrec->z<<endl;
+//			}
+//			myfile3<<endl;
+//			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
+//		}
+//
+//		if (t > 0.999 && hit4 == 0) {
+//			hit4 = 1;
+//			myfile3 <<"t = 1e0"<<endl;
+//			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
+//				myfile3<<itrec->x<<" "<<itrec->y<<" "<<itrec->z<<endl;
+//			}
+//			myfile3<<endl;
+//			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
+//		}
+//
+//		if (t > 999 && hit5 == 0) {
+//			hit5 = 1;
+//			myfile3 <<"t = 1e3"<<endl;
+//			for (itrec = bulk_defects.begin(); itrec != bulk_defects.end(); itrec++) {
+//				myfile3<<itrec->.x<<" "<<itrec->y<<" "<<itrec->z<<endl;
+//			}
+//			myfile3<<endl;
+//			myfile3<<(end_of_str_traps - emi)<<" defects recovered"<<endl;
+//		}
 
 
     }
@@ -933,9 +896,9 @@ for (int ii = 0; ii < sim_size; ii++)
 
 
     myfile1<<emi<<endl;
-    myfile5<<delVot<<endl;
+    //myfile5<<delVot<<endl;
     avg_traps_rec[cnt] += emi;
-    avg_vth_rec[cnt] += delVot;
+    //avg_vth_rec[cnt] += delVot;
 
     init_sites.clear();
     defect_rates.clear();
@@ -949,16 +912,16 @@ for (int ii = 0; ii < sim_size; ii++)
     {
         myfile1<<avg_traps_rec[h]*1.0/sim_size<<",";
         myfile<<avg_traps_str[h]*1.0/sim_size<<",";
-        myfile4<<avg_vth_str[h]/sim_size<<",";
-        myfile5<<avg_vth_rec[h]/sim_size<<",";
+        //myfile4<<avg_vth_str[h]/sim_size<<",";
+        //myfile5<<avg_vth_rec[h]/sim_size<<",";
     }
 
     myfile1.close();
-    myfile3.close();
-    myfile2.close();
+    //myfile3.close();
+    //myfile2.close();
     myfile.close();
-    myfile5.close();
-    myfile4.close();
+    //myfile5.close();
+    //myfile4.close();
 
     //cout<<avg_traps_rec[82]<<endl;
 	return 0;
@@ -1000,22 +963,24 @@ void carry_out_reaction() {
 	//K31
 	if (r2 < temp_1) {
 		temp11 = 0;
-		multimap <int, threeD>::iterator it;
+		//multimap <int, threeD>::iterator it;
+		vector <threeD>::iterator it;
 		for (it = bulk_defects.begin(); it != bulk_defects.end(); it++){
 
 			temp12 = temp11/alpha0;
-			temp11 = temp11 + defect_rates[it->second].second;
+
+			temp11 = temp11 + defect_rates[*it].second;
 			temp13 = temp11/alpha0;
 
 			if ((r2 >= temp12) && (r2 < temp13)) {
-                init_sites.push_back(it->second);
+                init_sites.push_back(*it);
 
-                alpha_k13_total = alpha_k13_total + defect_rates[it->second].first;
+                alpha_k13_total = alpha_k13_total + defect_rates[*it].first;
 
-                if(bulk_defects.size()!=1) alpha_k31_total = alpha_k31_total - defect_rates[it->second].second;
+                if(bulk_defects.size()!=1) alpha_k31_total = alpha_k31_total - defect_rates[*it].second;
                 else alpha_k31_total = 0;
 
-                delVot -= 1000*q*Tox*(1 - ((it->second).z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
+                //delVot -= 1000*q*Tox*(1 - (it->z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
                 bulk_defects.erase(it);
 
                 setzero(delVot);
@@ -1036,14 +1001,15 @@ void carry_out_reaction() {
 			temp13 = temp11/alpha0;
 			if ((r2 >= temp12) && (r2 < temp13)) {
 
-				bulk_defects.insert(pair<int, threeD> (0,*it));
+				//bulk_defects.insert(pair<int, threeD> (0,*it));
+                bulk_defects.push_back(*it);
 
 				if(init_sites.size() != 1) alpha_k13_total = alpha_k13_total - defect_rates[*it].first;
 				else alpha_k13_total = 0;
 
 				alpha_k31_total = alpha_k31_total + defect_rates[*it].second;
 
-				delVot += 1000*q*Tox*(1 - (it->z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
+				//delVot += 1000*q*Tox*(1 - (it->z + 0.5)/(1.0*z_lim))/(dev_area*ESiO2*E0);
 				init_sites.erase(it);
 
                 //setzero(delVot);
